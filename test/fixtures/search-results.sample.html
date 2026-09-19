@@ -1,0 +1,71 @@
+<!doctype html>
+<!--
+  SYNTHETIC FIXTURE - NOT real 1337x markup.
+
+  Hand-written to resemble a results table so src/core/rows.ts has something to parse. The real
+  page markup has not been captured yet; phase 2 replaces this with a saved real search page.
+  Links are deliberately relative so the parser's base-URL resolution is exercised.
+
+  It also carries the parser's edge cases on purpose:
+  - the <header> holds a valid-looking /torrent/998/ link that is outside any <tr> (must be skipped),
+  - the tbody links to id 101 twice (must collapse to a single row),
+  - the id 303 link's text is padded with whitespace (must come back trimmed).
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Synthetic search results</title>
+  </head>
+  <body>
+    <header>
+      <h1>Search results for "synthetic"</h1>
+      <a href="/torrent/998/featured-not-a-row/">Featured torrent, not a row</a>
+    </header>
+
+    <table class="table-list">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Seeds</th>
+          <th>Size</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="coll-1 name">
+            <a href="/torrent/101/first-synthetic-torrent/">First Synthetic Torrent</a>
+          </td>
+          <td class="coll-2 seeds">42</td>
+          <td class="coll-4 size">1.2 GB</td>
+        </tr>
+        <tr>
+          <td class="coll-1 name">
+            <a href="/torrent/101/first-synthetic-torrent-duplicate/"
+              >First Synthetic Torrent Duplicate</a
+            >
+          </td>
+          <td class="coll-2 seeds">3</td>
+          <td class="coll-4 size">1.2 GB</td>
+        </tr>
+        <tr>
+          <td class="coll-1 name">
+            <a href="/torrent/202/second-synthetic-torrent/">Second Synthetic Torrent</a>
+          </td>
+          <td class="coll-2 seeds">7</td>
+          <td class="coll-4 size">700 MB</td>
+        </tr>
+        <tr>
+          <td class="coll-1 name">
+            <a href="/torrent/303/third-synthetic-torrent/"> Third Synthetic Torrent </a>
+          </td>
+          <td class="coll-2 seeds">0</td>
+          <td class="coll-4 size">3.4 GB</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <footer>
+      <a href="/">Home</a>
+    </footer>
+  </body>
+</html>

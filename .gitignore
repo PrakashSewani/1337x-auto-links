@@ -8,6 +8,7 @@ vendor/
 
 # Build output
 dist/
+release/
 build/
 out/
 target/

@@ -1,0 +1,48 @@
+<!doctype html>
+<!--
+  SYNTHETIC FIXTURE - NOT real 1337x markup.
+
+  The torrent DETAIL page has never been captured: every paste so far has been a *list* page, which
+  carries no magnet links at all (docs/status.md, D-003). This file is hand-written to the shape
+  D-004's tolerance-based selectors are specified against. It is NOT evidence about what the real
+  page looks like, and it must be replaced the first time a real detail page is captured.
+
+  Anchors, in document order, carry the parser's edge cases on purpose:
+    - a `javascript:` magnet lookalike that must be ignored,
+    - the real magnet link, which must be found and kept verbatim (never URL-resolved),
+    - an unparseable href that must be skipped rather than thrown on,
+    - a plain torrent-detail link and a `.torrent` that appears only in a query string (ignored),
+    - a bare `.torrent` file link, and a relative one whose text says "Torrent Download"
+      (the hinted one must win over the bare one),
+    - a further `.torrent` link that must lose to the already-chosen one.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Synthetic torrent detail page</title>
+  </head>
+  <body>
+    <div class="torrent-detail">
+      <h1>Synthetic Torrent (2026)</h1>
+
+      <div class="download-links">
+        <a href="javascript:void(0)" class="magnet-lookalike">Magnet Download</a>
+        <a href="magnet:?xt=urn:btih:0123456789abcdef&amp;dn=synthetic" class="magnet"
+          >Magnet Download</a
+        >
+      </div>
+
+      <ul class="detail-links">
+        <li><a href="http://">Broken reference</a></li>
+        <li><a href="/torrent/1234/synthetic/?from=detail">Back to results</a></li>
+        <li><a href="https://1337x.to/get/not-a-file?name=file.torrent">Reported size</a></li>
+      </ul>
+
+      <ul class="files">
+        <li><a href="/downloads/plain-file.torrent">plain file</a></li>
+        <li><a href="downloads/Torrent-Download.torrent">Torrent Download</a></li>
+        <li><a href="/downloads/another-file.torrent">another file</a></li>
+      </ul>
+    </div>
+  </body>
+</html>

@@ -1,0 +1,112 @@
+/*
+ * Styles for the controls the content script injects (D-003). Every selector is scoped to the
+ * extension's own `x-1337x-auto-links-*` classes: nothing here targets 1337x's markup or changes
+ * the site's layout. The controls inherit the page's font and sit in the title's own line, so they
+ * size themselves relative to it (`em`) instead of imposing a font or a fixed pixel size.
+ */
+
+.x-1337x-auto-links-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25em;
+  margin-left: 0.5em;
+  vertical-align: middle;
+  line-height: 1;
+  flex: none;
+  white-space: nowrap;
+}
+
+.x-1337x-auto-links-magnet,
+.x-1337x-auto-links-torrent {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 1.15em;
+  height: 1.15em;
+  padding: 0;
+  border: none;
+  border-radius: 0.35em;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    opacity 120ms ease;
+}
+
+/*
+ * A translucent mid-grey wash is the same affordance on a light page (it darkens) and a dark one
+ * (it lightens), without the extension having to know which it is on.
+ */
+.x-1337x-auto-links-magnet:hover:not(:disabled),
+.x-1337x-auto-links-torrent:hover:not(:disabled) {
+  background-color: rgb(127 127 127 / 28%);
+}
+
+.x-1337x-auto-links-magnet:active:not(:disabled),
+.x-1337x-auto-links-torrent:active:not(:disabled) {
+  background-color: rgb(127 127 127 / 45%);
+}
+
+.x-1337x-auto-links-icon {
+  width: 1em;
+  height: 1em;
+  display: block;
+}
+
+/*
+ * Disabled controls stay legible: the glyph keeps its full size and only loses a little saturation
+ * and opacity, so a `saving…` or `missing` state still reads at a glance. Fading it to invisibility,
+ * as a thin grey glyph on `opacity: .5` did, is exactly what to avoid.
+ */
+.x-1337x-auto-links-magnet:disabled,
+.x-1337x-auto-links-torrent:disabled {
+  opacity: 0.88;
+  filter: saturate(0.45);
+  cursor: default;
+}
+
+/*
+ * `saved` and `failed` are outcomes, not an unavailable control: their colour is the message, so
+ * they keep it. Desaturating them like the rest would render a finished download as a grey dot on a
+ * dark page — the same fade-to-nothing this file exists to avoid.
+ */
+.x-1337x-auto-links-torrent:disabled[data-state='saved'],
+.x-1337x-auto-links-torrent:disabled[data-state='failed'] {
+  opacity: 1;
+  filter: none;
+}
+
+/*
+ * A save in flight has to look like work (D-009). Its glyph swaps the download arrow for a
+ * three-quarter arc, and the arc turns while the request is out — restrained, but plainly not the
+ * idle arrow. The arc is a different drawing from that arrow, so the state still reads with the
+ * animation switched off: in a still screenshot, and under the reduced-motion rule below, which
+ * leaves the static distinction carrying the meaning on its own.
+ */
+.x-1337x-auto-links-torrent[data-state='saving'] .x-1337x-auto-links-saving-spin {
+  animation: x-1337x-auto-links-saving-spin 900ms linear infinite;
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+}
+
+@keyframes x-1337x-auto-links-saving-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .x-1337x-auto-links-torrent[data-state='saving'] .x-1337x-auto-links-saving-spin {
+    animation: none;
+  }
+}
+
+.x-1337x-auto-links-magnet:focus-visible,
+.x-1337x-auto-links-torrent:focus-visible {
+  outline: 2px solid rgb(77 124 255 / 90%);
+  outline-offset: 1px;
+}

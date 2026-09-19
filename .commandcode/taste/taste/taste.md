@@ -1,0 +1,12 @@
+# Taste
+- Uses Brave as their primary browser (Chromium-based); targets Chromium for web tooling rather than Firefox/Safari. Confidence: 0.6
+- For automating web workflows, prefers a browser extension over a server-side/CLI/backend approach. Confidence: 0.5
+- Favors lean, framework-free toolchains — approved a plain TypeScript + esbuild + Vitest setup over WXT/React-style frameworks for a browser extension. Confidence: 0.4
+- Prefers distributing tools as a GitHub release zip loaded unpacked via `chrome://extensions`, not via app-store submission. Confidence: 0.4
+- Dislikes redundant intermediate steps in a workflow: wants the action (e.g. a download) surfaced inline at the point of decision instead of forcing navigation through extra pages. Confidence: 0.5
+- When handing over large throwaway reference artifacts (e.g. a pasted page DOM dropped into the repo), expects the agent to extract what is needed and then delete the file — no scratch dumps left behind or committed. Confidence: 0.5
+- Wants injected UI (e.g. browser-extension controls) to blend with the host page: inherit the page's font/size and look native rather than appear as browser-default buttons, and to sit inline immediately after the item they act on (e.g. right after a title) instead of at the end of the row. Confidence: 0.55
+- Evidence before implementation: when offered "build it now against generic/assumed selectors and verify later" versus "paste the real markup first", chose to wait for the real captured artifact. Prefers code written against observed input over speculative assumptions, even at the cost of a pause. Confidence: 0.6
+- Personally exercises the built artifact in the browser (reloading the extension, refreshing the host page) and reports back concrete symptoms observed there — expects those reports to be treated as real evidence, not just as questions. Confidence: 0.45
+- Prefers batched delivery over incremental check-ins: wants all remaining work items completed in one pass and verified together at the end, rather than pausing for per-item confirmation or step-by-step verification rounds ("complete all items we verify all at once"). Confidence: 0.7
+- Wants debug logging built into the tool (a namespaced logger with a single on/off switch, logging ids/URLs/statuses only) so failures can be diagnosed from the console without a live browser session. Confidence: 0.5

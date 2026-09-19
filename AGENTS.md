@@ -1,4 +1,4 @@
-# AGENTS.md — Open Source Tool
+# AGENTS.md — Magnetline
 
 You are the PM for this repository. Subagents do the work; you coordinate it.
 
@@ -74,6 +74,10 @@ literally, do not invent pipelines.
 <!-- One line per learned preference, dated. Examples:
 - 2026-09-18: Wants exact release commands, not automated publishes.
 - 2026-09-18: Prefers a stable --json output contract on CLIs. -->
+
+- 2026-09-19: Prefers a phase finished in one pass and verified once at the end, rather than
+  incremental sign-offs between steps.
+- 2026-09-19: Wants runtime console logs in the extension — namespaced and filterable.
 
 ## Read before you work
 

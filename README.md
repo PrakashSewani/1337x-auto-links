@@ -1,48 +1,61 @@
-# Open Source Tool
+# Magnetline
 
-A repository template for an open-source **CLI, library, or small service** — docs, agent rules,
-subagents, and a release-shaped skeleton. No tech stack is baked in: the stack is chosen when the
-tool's requirements are known.
+A browser extension for Chromium browsers (Brave, Chrome, Edge) that puts the download action into
+1337x search results. Every result row gets a magnet control and a `.torrent` control right after its
+title, so a torrent can go straight to your torrent client or into your downloads — no more opening
+each torrent's detail page just to reach its magnet link.
 
-## Getting started
+*(The repository keeps its slug, `1337x-auto-links`; the extension ships as Magnetline.)*
 
-1. **Create the repo** — "Use this template → Create a new repository" on GitHub, or locally:
+> **Status: implemented, awaiting its first real-browser test.** Every result row resolves its magnet
+> and `.torrent` link through a bounded background prefetch, the magnet is handed to your torrent
+> client, and `.torrent` files are saved through the browser. The suite covers this against fixtures;
+> the two browser-only behaviours — the handoff and the download — are proven on a real page, not
+> here. The live state of the project is in [docs/status.md](./docs/status.md).
 
-   ```powershell
-   .\scripts\new-project.ps1 -Template template-open-source-tool -Name my-tool -Title "My Tool"
-   ```
+## Install
 
-   ```bash
-   bash scripts/new-project.sh template-open-source-tool my-tool "My Tool"
-   ```
+Nothing is published anywhere yet — build it and load it unpacked:
 
-2. **Rename** (skip if you used the script above):
+```bash
+npm ci --include=dev   # --include=dev matters on some machines — see docs/development.md
+npm run build          # writes dist/
+```
 
-   ```bash
-   node scripts/init.mjs --name my-tool --title "My Tool"
-   ```
+Then `chrome://extensions` → **Developer mode** → **Load unpacked** → pick the `dist/` folder.
+Reload the extension card after each rebuild, then refresh the page. `npm run zip` produces the same
+files as a release zip.
 
-3. **Bootstrap it.** Open an AI session in the repo, describe the tool in plain words, then say
-   *"bootstrap this project"*. The agent follows `AGENTS.md` and the `project-bootstrap` skill:
-   it asks the questions that matter, picks the smallest stack that fits, resolves current
-   package versions **live**, records the decision in `docs/`, and scaffolds the repo with checks,
-   CI, and the release path.
+## How it works
 
-## What's in here
+1337x search results list torrents but not their magnet links — those exist only on each torrent's
+detail page. The extension resolves them in the background for the rows you are looking at, caches
+the answers, and so can offer the magnet (hands off to your torrent client) and the `.torrent` file
+(saves it through the browser) right in the list.
 
-- `AGENTS.md` — the four rules, the PM/subagent model, and the no-stack-assumed workflow.
-- `docs/` — `product.md` (the brief), `architecture.md`, `decisions.md`, `status.md`,
-  `development.md`.
-- `.commandcode/agents/` — `implementer`, `verifier`, `docs-writer`.
-- `.commandcode/skills/` — `project-bootstrap` (choose + scaffold the stack), `ship-release`.
-- `scripts/init.mjs` — renames the template once; delete it after.
+There is no server, no account, and no telemetry. Every request comes from your own browser session
+— which is also the only kind of request the site answers at all.
 
-## Why nothing is pinned
+## Development
 
-Templates that ship a pinned stack go stale in weeks and force yesterday's tools onto today's
-project. This template ships the **shape** — docs-first, PM + subagents, one check command, a
-tag-driven release — and leaves the stack to be decided with you at project start, with versions
-resolved on that day.
+```bash
+npm ci --include=dev   # --include=dev matters on some machines — see docs/development.md
+npm run check          # typecheck, lint, format, tests, build — the one command that must pass
+npm run build          # writes dist/, which is what you load unpacked in the browser
+npm run watch          # rebuild on save while developing
+npm run zip            # writes release/1337x-auto-links-<version>.zip
+```
+
+Prerequisites, the full command list, and this project's environment quirks are in
+[docs/development.md](./docs/development.md).
+
+## Docs
+
+- [docs/product.md](./docs/product.md) — what it is, who it's for, what it is not
+- [docs/architecture.md](./docs/architecture.md) — shape, components, contracts, invariants
+- [docs/decisions.md](./docs/decisions.md) — why the stack is what it is
+- [docs/status.md](./docs/status.md) — where the project stands right now
+- [docs/development.md](./docs/development.md) — setup, commands, troubleshooting
 
 ## License
 

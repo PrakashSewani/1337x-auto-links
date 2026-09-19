@@ -1,0 +1,18 @@
+# Build output
+dist/
+release/
+coverage/
+build/
+
+# Dependencies
+node_modules/
+
+# Docs are owned by the PM and are not Prettier-formatted
+docs/
+*.md
+
+# Tooling that ships with its own conventions
+.commandcode/
+
+# Generated
+package-lock.json
