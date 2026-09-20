@@ -7,11 +7,11 @@ each torrent's detail page just to reach its magnet link.
 
 *(The repository keeps its slug, `1337x-auto-links`; the extension ships as Magnetline.)*
 
-> **Status: implemented, awaiting its first real-browser test.** Every result row resolves its magnet
-> and `.torrent` link through a bounded background prefetch, the magnet is handed to your torrent
-> client, and `.torrent` files are saved through the browser. The suite covers this against fixtures;
-> the two browser-only behaviours — the handoff and the download — are proven on a real page, not
-> here. The live state of the project is in [docs/status.md](./docs/status.md).
+> **Status: `v0.1.0` is released, and the workflow has been confirmed end to end on a real 1337x
+> page** — the zip from the release was downloaded, installed unpacked in Brave, and its magnet
+> handoff, `.torrent` save and live link resolution all worked (2026-09-20). Every result row
+> resolves its magnet and `.torrent` link through a bounded background prefetch. The live state of
+> the project is in [docs/status.md](./docs/status.md).
 
 ## Install
 

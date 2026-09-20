@@ -1,7 +1,7 @@
 # Status
 
 Persistent project tracker and handoff. The agent updates this as work lands — see `AGENTS.md`,
-rule 4. Keep exactly one phase `in progress`.
+rule 4. Keep exactly one phase `in progress` — and once every phase is complete, none.
 
 ## Phase tracker
 
@@ -10,16 +10,18 @@ rule 4. Keep exactly one phase `in progress`.
 | 0 | Requirements + stack selection: fill `docs/product.md`, choose the stack, record D-001 | **complete** |
 | 1 | Scaffold: structure, checks, CI, release path — recorded in `docs/architecture.md` / `development.md` | **complete** — independently verified 2026-09-19 |
 | 2 | Core behavior: the one workflow the tool exists for, end to end, with tests | **complete** — implemented, independently verified, and the verification's own gaps closed |
-| 3 | Polish: README, icons, error messages, docs — the parts users judge first | **complete** — the product name, the pictogram controls, hover priority, the icon set, the D-010 loading-path hardening and the D-011 release packaging all landed; the real-browser test is now the first step of phase 4 |
-| 4 | Release: tag `v0.1.0`, artifacts published, install path verified from a clean machine | **in progress** — `v0.1.0` is tagged and published with the zip attached; the install path and the two browser-only behaviours still have to be confirmed on a real machine |
+| 3 | Polish: README, icons, error messages, docs — the parts users judge first | **complete** — the product name, the pictogram controls, hover priority, the icon set, the D-010 loading-path hardening and the D-011 release packaging all landed |
+| 4 | Release: tag `v0.1.0`, artifacts published, install path verified from a clean machine | **complete** — `v0.1.0` is tagged and published with the zip attached, and that zip was installed unpacked in Brave (card reading `0.1.0`) with the workflow then confirmed end to end on a real page, 2026-09-20 — on the owner's own machine, which carries this checkout, not on a bare one |
 
 ## Current handoff
 
-**Phase:** 4 — `v0.1.0` is out and the artifact was verified by downloading it back from the release
-page. What remains is installing it from that zip on a real machine and running the acceptance test
-below against it, which no fixture can do.
+**Phase:** none — every phase is complete, so the tracker's "exactly one phase `in progress`" rule has
+nothing to point at. Phase 4 closed on 2026-09-20: the owner downloaded the zip from the `v0.1.0`
+release page, loaded it unpacked in Brave — card reading `0.1.0` — and ran the acceptance test below
+against a live page. Nothing is in progress; what is left is listed under **Next action** and
+**Also open**.
 
-**Done this session (continued):**
+**Landed on the way to `v0.1.0` (D-005 through D-011):**
 
 - **D-005** — the product is **Magnetline**. The repository slug, the npm package name and the release
   artifact name are unchanged, so the release procedure needed no edit.
@@ -58,6 +60,20 @@ below against it, which no fixture can do.
 
 **Verified (observed, not assumed):**
 
+- **The released artifact was installed and used in Brave, 2026-09-20** — the owner downloaded the zip
+  from the `v0.1.0` release page, loaded it unpacked, and saw the extension card read `0.1.0`. That is
+  the install path phase 4 was waiting on: the release zip itself, not `dist/`.
+- **The magnet control handed the row's magnet to the OS torrent client**, and the results page stayed
+  where it was.
+- **The `.torrent` control saved a file** — confirmed to be a real file in Downloads.
+- **Every row on that live page resolved** — none stuck on `failed`, and none showing `missing` where
+  the page genuinely carried the link. D-004's selectors had never met live markup; this is that first
+  measurement, taken on one live results page and the detail pages behind its rows. On those pages the
+  loose, shape-based selectors found the real links. One page is not every page shape 1337x serves —
+  see D-012.
+- **Hover promotion worked on a live page** — a hovered row's icons enabled before the rows above it.
+- **The from-source path was exercised too** — the owner also ran `npm run build` and it worked, so the
+  README's `dist/` route is not merely documented.
 - `npm run check` exits 0 — **112 tests across 10 files**.
 - **`v0.1.0` is released** — the tag points at `986bf08`, the Release workflow ran green in 25 s, and
   the published asset was downloaded back and inspected: `manifest.json` at its root stamped `0.1.0`,
@@ -92,16 +108,23 @@ below against it, which no fixture can do.
   first verification named five claims with no test behind them; all five are now closed and the
   closures re-checked independently.
 
-**Not verified — browser only, by nature:** installing the release zip on a machine that is not this
-checkout, the magnet handoff reaching the OS client, the `.torrent` download saving a valid file, the
-**live detail-page selectors** (that page has never been captured, so D-004's tolerance remains a
-decision rather than a measurement), and how the icons actually look in a row at the page's font size.
+**Not verified — browser only, by nature:** how the icons look in a row at the page's font size — the
+owner used both controls and reported nothing wrong with them, which is not a judgement on their
+appearance at that size. Nor was acceptance-test step 3 reported on either way, so nothing here claims
+its console output was checked. And the install ran on the owner's own machine, which carries this
+checkout: what phase 4's scope cell rests on is the release artifact being installed and used, not a
+machine with none of this repository on it.
 
-**Next action:** install from the release zip — not from `dist/` — and run the acceptance test below
-in Brave. A failure becomes `v0.1.1` through the ship-release procedure's yank path; a selector miss
-becomes a capture-driven correction first.
+**Next action:** no release is pending — every phase is complete and `v0.1.0` is the shipped artifact.
+What is left is the **Also open** list below: the D-010 batching follow-up, `registerMessageHandler`'s
+rejection → `sendResponse(undefined)` mapping still being untested, and the `test/icons.test.ts`
+environment note. Any future release re-runs the acceptance test below against the new zip first.
 
 ### Acceptance test
+
+Run once and passed on 2026-09-20 — the owner, in Brave, from the `v0.1.0` release zip installed
+unpacked. It is the re-test checklist for any future release: these are the behaviours no fixture can
+cover.
 
 1. Download `1337x-auto-links-0.1.0.zip` from the release page, unzip it, and load the unzipped folder
    unpacked in `chrome://extensions`; confirm the card's version reads **0.1.0**. For a local build

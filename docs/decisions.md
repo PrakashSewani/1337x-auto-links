@@ -361,3 +361,32 @@ is missing, and the artifact is inspected before it ships. Note the one gap this
 `npm run zip` does not delete a zip an earlier successful run left in `release/`, so a local
 `release/` can hold a stale artifact. CI never sees it (fresh checkout, and `release/` is
 gitignored); it is recorded here so a stale local zip is never mistaken for the current one.
+
+## D-012: The detail-page selectors stay loose now that they are known to work
+
+**Date:** 2026-09-20
+
+**Context:** D-004 chose the selectors by shape rather than by class — the magnet is the first anchor
+whose `href` starts with `magnet:`, the `.torrent` file the first anchor whose href path ends in
+`.torrent` — and recorded them as **unverified against live markup**, with a wrong guess degrading
+into a visible "not found" rather than a silent wrong download. That clause is now measured: the
+acceptance test in `docs/status.md` was run on 2026-09-20 against the released `v0.1.0` zip in Brave,
+and every row on the live page resolved — none stuck on `failed`, and none reporting `missing` where
+the page carried the link. **This entry supersedes that clause of D-004.** The log is append-only, so
+D-004 keeps its wording and its reasoning; only the "unverified" status changes.
+
+**Decision:** The selectors stay shape-based, and nothing in the code changes. The tempting next step
+now that they are known to work is to pin them to 1337x's current class names for extra precision;
+that is refused, because it would re-couple the extension to the markup the site reshuffles — exactly
+what D-004's tolerance was chosen to avoid.
+
+**Rejected:** pinning to the detail page's current class names or to `td.coll-1.name` (more precise
+today, broken by the next reshuffle, and the breakage would be silent until a user hit it); a
+class-first selector with a shape-based fallback (two paths to keep tested, for a failure one
+measurement has not yet shown to exist).
+
+**Consequences:** the evidence is one live results page and the detail pages behind its rows, not
+every shape 1337x serves — other page types, other result sets and a torrent that genuinely has no
+magnet link remain unobserved, and an unobserved shape still surfaces as D-004's visible "not found".
+`docs/status.md` carries the observation; `docs/development.md` already tells a reader how to correct
+the selectors from a fresh capture if one is ever needed.
