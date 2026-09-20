@@ -275,3 +275,44 @@ all.
 **Consequences:** Colours are fixed rather than inherited, so any future light/dark adaptation is a new
 decision. Judging a change to the glyphs means looking at them: `release/icons-preview.html` plus a
 screenshot through the `agent-browser` CLI is this repository's review loop for anything visual.
+
+## D-010: A fetch deadline, and the cache off the fetch path
+
+**Date:** 2026-09-20
+
+**Context:** Reviewing how the links actually load found four ways the bounded prefetch wasted its own
+budget. `fetch` had no deadline, so a request that never settles holds one of only two in-flight slots
+for the rest of the page load and every row behind it waits — D-004's cap working against the user. A
+resolved row's cache write was awaited *inside* its queued task, so a round trip to the worker — a
+whole-store read-modify-write of `chrome.storage.local`, once per row — held a fetch slot too. Two
+`cache/write` messages handled concurrently could interleave `loadStore()` and `set()`, losing one of
+the two entries. And a single cache-read failure made `readCache` return `{}`, turning fifty cache hits
+into fifty fresh fetches — the exact traffic the cache exists to prevent.
+
+**Decision:**
+
+- **Every detail fetch has a 15-second deadline** (`AbortController`, timer cleared on settle). Hitting
+  it is an ordinary visible failure — both controls report `timed out after 15s`, the row is not cached
+  — and it releases the queue slot immediately. D-004's "no retries" is untouched: a timed-out fetch is
+  not re-attempted, it fails.
+- **A cache write never holds a fetch slot.** The write for a resolved row is started off the queued
+  task; the slot belongs to site traffic. The content script still awaits the writes before its work is
+  done, so none is left in flight when the page is replaced. A write that fails is logged, as before.
+- **The worker serialises `cache/write`.** Writes are chained inside the service worker, so concurrent
+  messages cannot lose an entry through an interleaved read-modify-write. This is internal to the
+  worker: the message contract in `docs/architecture.md` is unchanged, still the same three requests.
+- **The cache read is retried once** before the page degrades to a full re-fetch. It is the only retry
+  in the extension, it is a local `chrome.storage` read, and it leaves D-004's rule intact: site
+  traffic is still never retried.
+
+**Rejected:** raising the concurrency cap or lowering the spacing to compensate (D-006 already refused
+that trade — freeing the slots the writes were occupying buys the throughput for free); a fourth
+request type that batches a page's writes into one message (a contract change for a win that
+serialising already gets most of — noted in `docs/status.md` as a follow-up, not taken here); leaving a
+stalled fetch to hang with no deadline (the row would look like it is still loading forever, which the
+UI contract forbids).
+
+**Consequences:** the prefetch invariant in `docs/architecture.md` now names the deadline, the
+off-path cache write and the single cache-read retry. A stalled request can no longer hold the queue
+behind it, and a cache-read blip costs one retry instead of a page of refetches. User-visible text
+gains one reason — `timed out after 15s` — on rows whose fetch hit the deadline.

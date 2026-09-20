@@ -17,6 +17,22 @@ import type {
 type CacheStore = Record<string, CachedLinks>;
 
 /**
+ * Serialises `cache/write` (D-010) so two concurrent messages cannot interleave their
+ * `loadStore()` → `set()` read-modify-write and lose an entry. Each write chains onto the previous
+ * one; a failed write settles the chain rather than poisoning it, so the writes behind it still run.
+ */
+let writeChain: Promise<unknown> = Promise.resolve();
+
+function queueCacheWrite(request: CacheWriteRequest): Promise<CacheWriteResponse> {
+  const run = writeChain.then(() => writeCache(request));
+  writeChain = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
+}
+
+/**
  * The service worker's request handler. Owns everything the page cannot do: the `chrome.storage`
  * cache and saving a `.torrent` through `chrome.downloads`. It never fetches 1337x (D-001): the
  * content script owns all site traffic.
@@ -26,7 +42,7 @@ export function handleRequest(message: RequestMessage): Promise<ResponseMessage>
     case 'cache/read':
       return readCache(message);
     case 'cache/write':
-      return writeCache(message);
+      return queueCacheWrite(message);
     case 'torrent/download':
       return downloadTorrent(message);
   }

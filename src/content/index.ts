@@ -9,6 +9,12 @@ import { createTaskQueue } from '../core/queue';
 import { extractResultRows } from '../core/rows';
 import type { ResultRow } from '../core/types';
 
+/**
+ * The detail-fetch deadline (D-010): a request that has not settled in this long fails like any
+ * other failure and releases its queue slot. The timer covers the request *and* reading the body.
+ */
+const DETAIL_FETCH_TIMEOUT_MS = 15_000;
+
 interface RowState {
   row: ResultRow;
   controls: RowControls;
@@ -45,6 +51,8 @@ export async function runContentScript(root: ParentNode, pageUrl: string): Promi
 
   const cache = await readCache(rows.map((row) => row.id));
   const queue = createTaskQueue();
+  /** Writes started off the queued tasks, awaited before this function resolves (D-010). */
+  const cacheWrites: Array<Promise<void>> = [];
 
   let hits = 0;
   let misses = 0;
@@ -56,7 +64,7 @@ export async function runContentScript(root: ParentNode, pageUrl: string): Promi
       // fetched last (D-004). The listener is cheap: `mouseenter` fires once per entry, with no
       // per-move work and no polling. A row already fetched (or in flight) is a no-op.
       state.row.row.addEventListener('mouseenter', () => queue.prioritize(state.row.id));
-      void queue.add(state.row.id, () => resolveRowDetail(state));
+      void queue.add(state.row.id, () => resolveRowDetail(state, cacheWrites));
     } else {
       hits += 1;
       applyLinks(state, { magnet: entry.magnet, torrentUrl: entry.torrentUrl });
@@ -65,6 +73,9 @@ export async function runContentScript(root: ParentNode, pageUrl: string): Promi
   log('cache', { hits, misses });
 
   await queue.idle();
+  // Every write has been sent before the script's work is done (D-010), so none is left in flight
+  // when the page is replaced. A failed write is swallowed inside `writeCache`.
+  await Promise.all(cacheWrites);
 }
 
 function applyLinks(state: RowState, links: DetailLinks): void {
@@ -74,14 +85,31 @@ function applyLinks(state: RowState, links: DetailLinks): void {
 
 /** Fetches a detail page in the page's origin, parses it and reads its links. Throws on failure. */
 async function fetchDetailLinks(row: ResultRow): Promise<DetailLinks> {
-  const response = await fetch(row.url, { credentials: 'same-origin' });
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const controller = new AbortController();
+  const deadline = setTimeout(() => controller.abort(), DETAIL_FETCH_TIMEOUT_MS);
 
-  const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
-  return extractDetailLinks(doc, row.url);
+  try {
+    const response = await fetch(row.url, {
+      credentials: 'same-origin',
+      signal: controller.signal,
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+    const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
+    return extractDetailLinks(doc, row.url);
+  } catch (cause) {
+    // Hitting the deadline is an ordinary failure, not a retry (D-010). Any other rejection passes
+    // through unchanged; only the timer ever aborts this controller, so the flag means the deadline.
+    if (controller.signal.aborted) {
+      throw new Error(`timed out after ${DETAIL_FETCH_TIMEOUT_MS / 1000}s`, { cause });
+    }
+    throw cause;
+  } finally {
+    clearTimeout(deadline);
+  }
 }
 
-async function resolveRowDetail(state: RowState): Promise<void> {
+async function resolveRowDetail(state: RowState, cacheWrites: Array<Promise<void>>): Promise<void> {
   log('fetching detail', state.row.id, state.row.url);
 
   let links: DetailLinks;
@@ -102,8 +130,10 @@ async function resolveRowDetail(state: RowState): Promise<void> {
     torrent: links.torrentUrl !== null,
   });
 
-  // A page that parsed fine is a result even with no magnet, so it is cached as one.
-  await writeCache(state.row.id, links);
+  // A page that parsed fine is a result even with no magnet, so it is cached as one. The write is
+  // started off the queued task (D-010): the slot belongs to site traffic, not to the worker's
+  // whole-store read-modify-write. `runContentScript` awaits every write before it resolves.
+  cacheWrites.push(writeCache(state.row.id, links));
 }
 
 /**
@@ -164,19 +194,38 @@ async function saveTorrent(state: RowState): Promise<void> {
   state.controls.setFailed(response.error);
 }
 
+type CacheReadOutcome =
+  { ok: true; entries: Record<string, CachedLinks> } | { ok: false; reason: string };
+
+/**
+ * Reads the cache, retrying exactly once (D-010): a single blip must not turn every row into a
+ * fetch. This is the extension's only retry — a local `chrome.storage` read, never site traffic.
+ * A second failure falls back to an empty cache, so every row is fetched as it was before.
+ */
 async function readCache(ids: string[]): Promise<Record<string, CachedLinks>> {
+  const first = await readCacheOnce(ids);
+  if (first.ok) return first.entries;
+
+  error('cache read failed, retrying once', first.reason);
+  const second = await readCacheOnce(ids);
+  if (second.ok) return second.entries;
+
+  error('cache read failed again, fetching every row', second.reason);
+  return {};
+}
+
+/** One `cache/read` attempt: its entries, or the reason it did not answer with any. */
+async function readCacheOnce(ids: string[]): Promise<CacheReadOutcome> {
   try {
     const response = await chrome.runtime.sendMessage<RequestMessage, ResponseMessage>({
       type: 'cache/read',
       ids,
     });
-    if (response.type === 'cache/read/response') return response.entries;
+    if (response.type === 'cache/read/response') return { ok: true, entries: response.entries };
 
-    error('unexpected cache read response', response.type);
-    return {};
+    return { ok: false, reason: `unexpected response: ${response.type}` };
   } catch (cause) {
-    error('cache read failed', describe(cause));
-    return {};
+    return { ok: false, reason: describe(cause) };
   }
 }
 

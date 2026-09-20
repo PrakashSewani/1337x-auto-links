@@ -25,7 +25,7 @@ function installChrome(initial: Store = {}) {
   };
 
   vi.stubGlobal('chrome', { storage: { local }, downloads: { download } });
-  return { store, download };
+  return { store, download, local };
 }
 
 function entry(at: number): CachedLinks {
@@ -55,6 +55,23 @@ describe('background handleRequest', () => {
     expect(saved.new).toEqual(fresh);
     // The oldest entry (at 0) was dropped; the newest survived.
     expect(saved['old-0']).toBeUndefined();
+  });
+
+  it('serialises two concurrent cache writes so neither entry is lost', async () => {
+    const { store } = installChrome();
+
+    // The second write is issued before the first resolves; an interleaved read-modify-write would
+    // keep only the later one (each loads the empty store before either has written).
+    const [first, second] = await Promise.all([
+      handleRequest({ type: 'cache/write', id: 'a', entry: entry(1) }),
+      handleRequest({ type: 'cache/write', id: 'b', entry: entry(2) }),
+    ]);
+
+    expect(first).toEqual({ type: 'cache/write/response' });
+    expect(second).toEqual({ type: 'cache/write/response' });
+    const saved = store[CACHE_STORAGE_KEY] as Record<string, CachedLinks>;
+    expect(saved.a).toEqual(entry(1));
+    expect(saved.b).toEqual(entry(2));
   });
 
   it('downloads a torrent with a sanitised filename and reports the download id', async () => {
@@ -90,5 +107,23 @@ describe('background handleRequest', () => {
       ok: false,
       error: 'Download blocked',
     });
+  });
+
+  it('keeps the write chain alive after a storage write rejects', async () => {
+    const { store, local } = installChrome();
+    local.set.mockRejectedValueOnce(new Error('storage set failed'));
+
+    // The failing write settles `handleRequest` as rejected — the same outcome
+    // `registerMessageHandler` turns into `sendResponse(undefined)`.
+    await expect(handleRequest({ type: 'cache/write', id: 'a', entry: entry(1) })).rejects.toThrow(
+      'storage set failed',
+    );
+
+    // A rejected write must settle the chain rather than poison it: the next write still commits.
+    const response = await handleRequest({ type: 'cache/write', id: 'b', entry: entry(2) });
+
+    expect(response).toEqual({ type: 'cache/write/response' });
+    const saved = store[CACHE_STORAGE_KEY] as Record<string, CachedLinks>;
+    expect(saved.b).toEqual(entry(2));
   });
 });

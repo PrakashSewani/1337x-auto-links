@@ -71,10 +71,16 @@ yet, the row says so.
   1337x's markup, and the controls inherit the page's font rather than imposing one. The only
   visible difference to a page should be the controls themselves.
 - **Prefetch is bounded:** fetching only happens when a result page is open, at most 2 detail
-  fetches are in flight, at least 300 ms separates the starts, nothing is retried, and the queue is
-  FIFO **except for explicit promotion** — hovering a row moves its pending fetch to the front
-  without ever breaking the cap or the spacing (D-006). Results are cached by torrent id, so a repeat
-  search costs no new requests.
+  fetches are in flight, at least 300 ms separates the starts, every fetch has a 15-second deadline,
+  site traffic is never retried, and the queue is FIFO **except for explicit promotion** — hovering a
+  row moves its pending fetch to the front without ever breaking the cap or the spacing (D-006).
+  Results are cached by torrent id, so a repeat search costs no new requests. A fetch that hits its
+  deadline fails visibly, like any other failure, and releases its slot — a stalled request can never
+  leave the queue waiting behind it (D-010).
+- **The cache is off the fetch path.** A resolved row's cache write does not hold a fetch slot, and
+  the worker serialises writes so two of them cannot interleave a read-modify-write and lose an entry
+  (D-010). A cache *read* is retried once before the page falls back to fetching every row — the only
+  retry in the extension, and a local `chrome.storage` read, never site traffic.
 - **The cache holds successes only.** A fetch that failed is never written, so a later visit retries
   it; a page that genuinely has no magnet is a result and is cached as one. The cache is pruned to a
   fixed cap rather than growing without bound.

@@ -10,7 +10,7 @@ rule 4. Keep exactly one phase `in progress`.
 | 0 | Requirements + stack selection: fill `docs/product.md`, choose the stack, record D-001 | **complete** |
 | 1 | Scaffold: structure, checks, CI, release path — recorded in `docs/architecture.md` / `development.md` | **complete** — independently verified 2026-09-19 |
 | 2 | Core behavior: the one workflow the tool exists for, end to end, with tests | **complete** — implemented, independently verified, and the verification's own gaps closed |
-| 3 | Polish: README, icons, error messages, docs — the parts users judge first | **in progress** — the product name, the redesigned pictogram controls, hover priority and the extension icon set have landed; the first real-browser acceptance test is all that remains |
+| 3 | Polish: README, icons, error messages, docs — the parts users judge first | **in progress** — the product name, the redesigned pictogram controls, hover priority, the extension icon set and the D-010 loading-path hardening have landed; the first real-browser acceptance test is all that remains |
 | 4 | Release: tag `v0.1.0`, artifacts published, install path verified from a clean machine | not started |
 
 ## Current handoff
@@ -42,10 +42,17 @@ confirmed on a real 1337x page, which no fixture can do.
   the decision log; the architecture's controls contract and prefetch invariant match the code;
   `development.md` gained the `npm run icons` row, the corrected troubleshooting rows, and a Logs
   section.
+- **D-010** — the loading path no longer wastes its own budget. Every detail fetch has a 15-second
+  deadline and fails visibly (`timed out after 15s`) instead of holding one of the two in-flight
+  slots forever; a resolved row's cache write no longer occupies a fetch slot; the worker serialises
+  `cache/write`, so two concurrent messages cannot interleave a read-modify-write and lose an entry;
+  and a cache-read blip is retried once instead of turning every row into a fetch. The prefetch and
+  cache invariants in `docs/architecture.md` were updated to match, and the decision log carries the
+  reasoning.
 
 **Verified (observed, not assumed):**
 
-- `npm run check` exits 0 — **102 tests across 10 files**.
+- `npm run check` exits 0 — **112 tests across 10 files**.
 - The code is on `main` (commit `5a3f72a`, remote head matches) and **CI ran for real for the first
   time: green on `ubuntu-latest`** — checkout, Node 24, `npm ci`, `npm run check`. The release
   workflow's tag/version guard is still unexercised, because no tag has been pushed: nothing has been
@@ -65,6 +72,13 @@ confirmed on a real 1337x page, which no fixture can do.
   removed.
 - Earlier in the session, an independent verification of phase 2 found no blocking code defects and
   named five surviving mutants; all five were closed with mutant evidence.
+- D-010 is held to the same standard: two independent verifications applied **ten mutations** — the
+  deadline removed, the deadline timer not cleared, the body read left outside the deadline, the
+  write awaited inside its fetch slot, a timed-out task still holding its slot, the write chain
+  bypassed, the write chain poisoned, a rejected write rethrown, the writes not awaited before
+  resolution, and the cache-read retry cut to one attempt — and a named test caught every one. The
+  first verification named five claims with no test behind them; all five are now closed and the
+  closures re-checked independently.
 
 **Not verified — browser only, by nature:** the magnet handoff reaching the OS client, the `.torrent`
 download saving a valid file, the **live detail-page selectors** (that page has never been captured,
@@ -84,9 +98,13 @@ capture-driven selector correction, whichever the test calls for.
    traffic.
 4. Click the magnet icon — the torrent client should open with the right torrent and the page must
    stay put. Click the file icon — it should go to `saved` and drop a valid file in Downloads.
-5. Report anything else: a control stuck on the alert glyph, or `missing` where the page clearly has
-   that link.
+5. Report anything else: a control stuck on the alert glyph, a `missing` where the page clearly has
+   that link, or a row that never leaves `saving…`. A row reporting `timed out after 15s` is D-010's
+   deadline doing its job, not a new bug.
 
-**Also open:** `test/icons.test.ts` runs in the Node environment (the only test that reads files —
-the rest use `?raw` HTML); `CHANGELOG`'s `[Unreleased]` is finalised at release time; a Chrome Web
-Store listing stays a non-goal in `product.md`.
+**Also open:** a fourth request type that batches a page's writes into one message — D-010's
+follow-up, left for later because serialising already gets most of the win and a new message is a
+contract change; `registerMessageHandler`'s rejection → `sendResponse(undefined)` mapping is still
+untested, because the handler is not exported; `test/icons.test.ts` runs in the Node environment (the
+only test that reads files — the rest use `?raw` HTML); `CHANGELOG`'s `[Unreleased]` is finalised at
+release time; a Chrome Web Store listing stays a non-goal in `product.md`.

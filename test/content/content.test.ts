@@ -92,6 +92,8 @@ function installChrome(
   entries: Record<string, CachedLinks>,
   onDownload: (message: TorrentDownloadRequest) => Promise<ResponseMessage> = () =>
     Promise.resolve({ type: 'torrent/download/response', ok: true, downloadId: 1 }),
+  onCacheWrite: (message: CacheWriteRequest) => Promise<ResponseMessage> = () =>
+    Promise.resolve({ type: 'cache/write/response' }),
 ) {
   const sendMessage = vi.fn((message: RequestMessage): Promise<ResponseMessage> => {
     if (message.type === 'cache/read') {
@@ -103,7 +105,7 @@ function installChrome(
       return Promise.resolve({ type: 'cache/read/response', entries: found });
     }
     if (message.type === 'cache/write') {
-      return Promise.resolve({ type: 'cache/write/response' });
+      return onCacheWrite(message);
     }
     return onDownload(message);
   });
@@ -382,5 +384,257 @@ describe('runContentScript hover promotion', () => {
     expect(fetchMock).not.toHaveBeenCalled();
     expect(magnet.disabled).toBe(false);
     expect(glyphOf(magnet)).toBe('magnet');
+  });
+});
+
+describe('runContentScript reliability (D-010)', () => {
+  it('fails a fetch that hits the 15-second deadline, without caching or retrying', async () => {
+    vi.useFakeTimers();
+    try {
+      const sendMessage = installChrome({});
+      // A fetch that only settles when its signal aborts, exactly as a real fetch behaves.
+      const fetchMock = vi.fn(
+        (_url: string, init?: RequestInit) =>
+          new Promise<Response>((_resolve, reject) => {
+            init?.signal?.addEventListener('abort', () => {
+              reject(new DOMException('The operation was aborted.', 'AbortError'));
+            });
+          }),
+      );
+      vi.stubGlobal('fetch', fetchMock);
+
+      const doc = listPageWith(['1']);
+      const done = runContentScript(doc, PAGE_URL);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+
+      // Past the deadline: the stall aborts, and the row fails visibly rather than hanging.
+      await vi.advanceTimersByTimeAsync(15_000);
+      await done;
+
+      const magnet = buttonAt(doc, '.x-1337x-auto-links-magnet', 0);
+      const torrent = buttonAt(doc, '.x-1337x-auto-links-torrent', 0);
+      for (const button of [magnet, torrent]) {
+        expect(glyphOf(button)).toBe('alert');
+        expect(button.getAttribute('data-state')).toBe('failed');
+        expect(button.getAttribute('aria-label')).toBe('timed out after 15s');
+        expect(button.title).toBe('timed out after 15s');
+      }
+      // A timed-out row is neither cached nor retried.
+      expect(cacheWrites(sendMessage)).toHaveLength(0);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('clears the deadline timer once a fetch settles', async () => {
+    vi.useFakeTimers();
+    try {
+      installChrome({});
+      const fetchMock = vi.fn(() => Promise.resolve(htmlResponse('<html></html>')));
+      vi.stubGlobal('fetch', fetchMock);
+
+      const doc = listPageWith(['1']);
+      await runContentScript(doc, PAGE_URL);
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      // The deadline timer is cleared on settle; a lingering one would fire on later work.
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('starts the next fetch on schedule while a cache write is still pending', async () => {
+    vi.useFakeTimers();
+    try {
+      const write = deferred<ResponseMessage>();
+      installChrome({}, undefined, () => write.promise);
+      const fetchOrder: string[] = [];
+      const fetchMock = vi.fn((url: string) => {
+        fetchOrder.push(url);
+        return Promise.resolve(htmlResponse('<html></html>'));
+      });
+      vi.stubGlobal('fetch', fetchMock);
+
+      const doc = listPageWith(['1', '2', '3']);
+      const done = runContentScript(doc, PAGE_URL);
+
+      // Rows 2 and 3 start 300 ms apart. If the first two rows' never-settling writes held their
+      // slots, row 3 would never start.
+      await vi.advanceTimersByTimeAsync(600);
+      expect(fetchOrder).toEqual([
+        'https://1337x.to/torrent/1/name/',
+        'https://1337x.to/torrent/2/name/',
+        'https://1337x.to/torrent/3/name/',
+      ]);
+
+      // Let the pending writes settle so the script can finish.
+      write.resolve({ type: 'cache/write/response' });
+      await done;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('retries the cache read once, so a blip does not refetch every row', async () => {
+    let reads = 0;
+    const sendMessage = vi.fn((message: RequestMessage): Promise<ResponseMessage> => {
+      if (message.type === 'cache/read') {
+        reads += 1;
+        if (reads === 1) return Promise.reject(new Error('storage unavailable'));
+        return Promise.resolve({
+          type: 'cache/read/response',
+          entries: { '1': { magnet: 'magnet:?xt=urn:btih:cached', torrentUrl: null, at: 1 } },
+        });
+      }
+      return Promise.resolve({ type: 'cache/write/response' });
+    });
+    vi.stubGlobal('chrome', { runtime: { sendMessage } });
+    const fetchMock = vi.fn(() => Promise.resolve(htmlResponse('<html></html>')));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const doc = listPageWith(['1']);
+    await runContentScript(doc, PAGE_URL);
+
+    // Exactly one retry, and the row rendered from the cache the retry returned.
+    expect(reads).toBe(2);
+    expect(fetchMock).not.toHaveBeenCalled();
+    const magnet = buttonAt(doc, '.x-1337x-auto-links-magnet', 0);
+    expect(magnet.disabled).toBe(false);
+    expect(glyphOf(magnet)).toBe('magnet');
+  });
+
+  it('waits for a pending cache write before resolving', async () => {
+    const write = deferred<ResponseMessage>();
+    const sendMessage = installChrome({}, undefined, () => write.promise);
+    const fetchMock = vi.fn(() => Promise.resolve(htmlResponse('<html></html>')));
+    vi.stubGlobal('fetch', fetchMock);
+
+    let settled = false;
+    const done = runContentScript(listPageWith(['1']), PAGE_URL).then(() => {
+      settled = true;
+    });
+
+    // The row fetched and its write was sent, but the write has not answered yet.
+    await flush();
+    expect(cacheWrites(sendMessage)).toHaveLength(1);
+    expect(settled).toBe(false);
+
+    // The script's work is done only once the in-flight write settles.
+    write.resolve({ type: 'cache/write/response' });
+    await done;
+    expect(settled).toBe(true);
+  });
+
+  it('swallows a rejected cache write and keeps sending later writes', async () => {
+    vi.useFakeTimers();
+    try {
+      const sendMessage = installChrome({}, undefined, (message) =>
+        message.id === '1'
+          ? Promise.reject(new Error('write failed'))
+          : Promise.resolve({ type: 'cache/write/response' }),
+      );
+      const fetchMock = vi.fn(() => Promise.resolve(htmlResponse('<html></html>')));
+      vi.stubGlobal('fetch', fetchMock);
+
+      const doc = listPageWith(['1', '2']);
+      const done = runContentScript(doc, PAGE_URL);
+      await vi.advanceTimersByTimeAsync(600);
+
+      // One row's write failing must neither reject the script nor stop the next row's write.
+      await expect(done).resolves.toBeUndefined();
+      expect(cacheWrites(sendMessage).map((write) => write.id)).toEqual(['1', '2']);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('applies the deadline to reading the response body', async () => {
+    vi.useFakeTimers();
+    try {
+      const sendMessage = installChrome({});
+      // `fetch` resolves at once, but the body read never settles except when the deadline aborts
+      // it — a stalled body, not a stalled request.
+      const fetchMock = vi.fn((_url: string, init?: RequestInit) =>
+        Promise.resolve({
+          ok: true,
+          status: 200,
+          text: () =>
+            new Promise<string>((_resolve, reject) => {
+              init?.signal?.addEventListener('abort', () => {
+                reject(new DOMException('The operation was aborted.', 'AbortError'));
+              });
+            }),
+        } as unknown as Response),
+      );
+      vi.stubGlobal('fetch', fetchMock);
+
+      const doc = listPageWith(['1']);
+      const done = runContentScript(doc, PAGE_URL);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+
+      // Only the deadline can end the stalled body read, and it must: the row fails visibly.
+      await vi.advanceTimersByTimeAsync(15_000);
+      await vi.advanceTimersByTimeAsync(0);
+
+      const magnet = buttonAt(doc, '.x-1337x-auto-links-magnet', 0);
+      const torrent = buttonAt(doc, '.x-1337x-auto-links-torrent', 0);
+      for (const button of [magnet, torrent]) {
+        expect(glyphOf(button)).toBe('alert');
+        expect(button.getAttribute('data-state')).toBe('failed');
+        expect(button.getAttribute('aria-label')).toBe('timed out after 15s');
+      }
+      expect(cacheWrites(sendMessage)).toHaveLength(0);
+
+      await done;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('releases the queue slot when a fetch times out', async () => {
+    vi.useFakeTimers();
+    try {
+      installChrome({});
+      const fetchMock = vi.fn((url: string, init?: RequestInit) => {
+        if (url.includes('/torrent/1/')) {
+          // The first row's request never settles except when the deadline aborts it.
+          return new Promise<Response>((_resolve, reject) => {
+            init?.signal?.addEventListener('abort', () => {
+              reject(new DOMException('The operation was aborted.', 'AbortError'));
+            });
+          });
+        }
+        return Promise.resolve(htmlResponse('<a href="magnet:?xt=urn:btih:second">Magnet</a>'));
+      });
+      vi.stubGlobal('fetch', fetchMock);
+
+      const doc = listPageWith(['1', '2']);
+      let settled = false;
+      const done = runContentScript(doc, PAGE_URL).then(() => {
+        settled = true;
+      });
+
+      // Row 2 starts at the 300 ms spacing mark while row 1 is still hanging.
+      await vi.advanceTimersByTimeAsync(600);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+
+      // Row 1's stall hits the deadline: the queue must finish, not hold its slot behind it.
+      await vi.advanceTimersByTimeAsync(15_000);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(settled).toBe(true);
+      await done;
+
+      // The second row resolved normally, and neither fetch was retried.
+      const magnet = buttonAt(doc, '.x-1337x-auto-links-magnet', 1);
+      expect(magnet.disabled).toBe(false);
+      expect(glyphOf(magnet)).toBe('magnet');
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
