@@ -10,13 +10,14 @@ rule 4. Keep exactly one phase `in progress`.
 | 0 | Requirements + stack selection: fill `docs/product.md`, choose the stack, record D-001 | **complete** |
 | 1 | Scaffold: structure, checks, CI, release path — recorded in `docs/architecture.md` / `development.md` | **complete** — independently verified 2026-09-19 |
 | 2 | Core behavior: the one workflow the tool exists for, end to end, with tests | **complete** — implemented, independently verified, and the verification's own gaps closed |
-| 3 | Polish: README, icons, error messages, docs — the parts users judge first | **in progress** — the product name, the redesigned pictogram controls, hover priority, the extension icon set and the D-010 loading-path hardening have landed; the first real-browser acceptance test is all that remains |
-| 4 | Release: tag `v0.1.0`, artifacts published, install path verified from a clean machine | not started |
+| 3 | Polish: README, icons, error messages, docs — the parts users judge first | **complete** — the product name, the pictogram controls, hover priority, the icon set, the D-010 loading-path hardening and the D-011 release packaging all landed; the real-browser test is now the first step of phase 4 |
+| 4 | Release: tag `v0.1.0`, artifacts published, install path verified from a clean machine | **in progress** — `v0.1.0` is tagged and published with the zip attached; the install path and the two browser-only behaviours still have to be confirmed on a real machine |
 
 ## Current handoff
 
-**Phase:** 3 — everything the user judges first is in place; the workflow itself still has to be
-confirmed on a real 1337x page, which no fixture can do.
+**Phase:** 4 — `v0.1.0` is out and the artifact was verified by downloading it back from the release
+page. What remains is installing it from that zip on a real machine and running the acceptance test
+below against it, which no fixture can do.
 
 **Done this session (continued):**
 
@@ -49,14 +50,25 @@ confirmed on a real 1337x page, which no fixture can do.
   and a cache-read blip is retried once instead of turning every row into a fetch. The prefetch and
   cache invariants in `docs/architecture.md` were updated to match, and the decision log carries the
   reasoning.
+- **D-011** — the release zip now carries the install `README.md` and the MIT `LICENSE` at its root,
+  authored in `packaging/README.md` and copied in by the build script, which fails outright if either
+  source is missing. The built extension stays at the zip root, so the folder a user unzips is
+  exactly the folder they load unpacked. Distribution is still a GitHub release asset and nothing
+  else — no store listing, no registry.
 
 **Verified (observed, not assumed):**
 
 - `npm run check` exits 0 — **112 tests across 10 files**.
-- The D-010 work is on `main` and pushed — `9ec44c1` is the remote head, and **CI is green on it**
-  (`ubuntu-latest`: checkout, Node 24, `npm ci`, `npm run check`), the third real run. The release
-  workflow's tag/version guard is still unexercised, because no tag has been pushed: nothing has been
-  released or published, which is the intended manual gate.
+- **`v0.1.0` is released** — the tag points at `986bf08`, the Release workflow ran green in 25 s, and
+  the published asset was downloaded back and inspected: `manifest.json` at its root stamped `0.1.0`,
+  the bundles and icons, and `README.md` with `LICENSE` beside them. That run exercised the
+  tag/version guard for the first time.
+  [Release page](https://github.com/PrakashSewani/1337x-auto-links/releases/tag/v0.1.0)
+- **CI is green on every push**, `9ec44c1` (D-010) and `986bf08` (this release) included.
+- The build's failure mode was probed rather than assumed: with `packaging/README.md`, and separately
+  `LICENSE`, renamed away, `npm run zip` exits 1 with an `ENOENT` and writes no zip. The one gap, now
+  recorded in D-011's consequences: a failed run does not delete a zip an earlier successful run left
+  behind, so a local `release/` can hold a stale artifact.
 - The visual states were judged by looking at them, not by reading code: the preview page renders the
   real `createIcon` output with the real stylesheet inlined, so it cannot drift from what ships.
 - A stylesheet test asserts what a DOM shim cannot: the `saving` animation hangs off the `saving`
@@ -80,17 +92,20 @@ confirmed on a real 1337x page, which no fixture can do.
   first verification named five claims with no test behind them; all five are now closed and the
   closures re-checked independently.
 
-**Not verified — browser only, by nature:** the magnet handoff reaching the OS client, the `.torrent`
-download saving a valid file, the **live detail-page selectors** (that page has never been captured,
-so D-004's tolerance remains a decision rather than a measurement), and how the icons actually look
-in a row at the page's font size.
+**Not verified — browser only, by nature:** installing the release zip on a machine that is not this
+checkout, the magnet handoff reaching the OS client, the `.torrent` download saving a valid file, the
+**live detail-page selectors** (that page has never been captured, so D-004's tolerance remains a
+decision rather than a measurement), and how the icons actually look in a row at the page's font size.
 
-**Next action:** the acceptance test below, in Brave. Then either phase 4 (tag `v0.1.0`) or a
-capture-driven selector correction, whichever the test calls for.
+**Next action:** install from the release zip — not from `dist/` — and run the acceptance test below
+in Brave. A failure becomes `v0.1.1` through the ship-release procedure's yank path; a selector miss
+becomes a capture-driven correction first.
 
 ### Acceptance test
 
-1. `npm run build`, reload the extension card in `chrome://extensions`, refresh a 1337x page.
+1. Download `1337x-auto-links-0.1.0.zip` from the release page, unzip it, and load the unzipped folder
+   unpacked in `chrome://extensions`; confirm the card's version reads **0.1.0**. For a local build
+   instead: `npm run build`, reload the card, refresh the 1337x page.
 2. Each row should show two small icons right after the title. Hover a row deep in the list — its
    icons should enable before the rows above it.
 3. Filter the page console by `1337x-auto-links`: rows found, cache hits/misses, each fetch and its
@@ -106,5 +121,5 @@ capture-driven selector correction, whichever the test calls for.
 follow-up, left for later because serialising already gets most of the win and a new message is a
 contract change; `registerMessageHandler`'s rejection → `sendResponse(undefined)` mapping is still
 untested, because the handler is not exported; `test/icons.test.ts` runs in the Node environment (the
-only test that reads files — the rest use `?raw` HTML); `CHANGELOG`'s `[Unreleased]` is finalised at
-release time; a Chrome Web Store listing stays a non-goal in `product.md`.
+only test that reads files — the rest use `?raw` HTML); a Chrome Web Store listing stays a non-goal in
+`product.md`.
