@@ -53,8 +53,8 @@ confirmed on a real 1337x page, which no fixture can do.
 **Verified (observed, not assumed):**
 
 - `npm run check` exits 0 — **112 tests across 10 files**.
-- The code is on `main` (commit `5a3f72a`, remote head matches) and **CI ran for real for the first
-  time: green on `ubuntu-latest`** — checkout, Node 24, `npm ci`, `npm run check`. The release
+- The D-010 work is on `main` and pushed — `9ec44c1` is the remote head, and **CI is green on it**
+  (`ubuntu-latest`: checkout, Node 24, `npm ci`, `npm run check`), the third real run. The release
   workflow's tag/version guard is still unexercised, because no tag has been pushed: nothing has been
   released or published, which is the intended manual gate.
 - The visual states were judged by looking at them, not by reading code: the preview page renders the
