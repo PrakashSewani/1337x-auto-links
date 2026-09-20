@@ -8,7 +8,7 @@ The stack and its exact versions are recorded in `docs/decisions.md` (D-001).
 | Artifact | Built by | What it is |
 |---|---|---|
 | `dist/` | `npm run build` | The unpacked extension: `manifest.json` (version stamped from `package.json`), `content.js`, `content.css`, `background.js`, and `icons/` |
-| `release/1337x-auto-links-<version>.zip` | `npm run zip` | The thing users download; contents are `dist/` with the manifest at the zip root |
+| `release/1337x-auto-links-<version>.zip` | `npm run zip` | The thing users download; the built extension at the zip root, plus the install `README.md` and `LICENSE` beside it |
 | `src/` | hand-written | TypeScript sources, grouped by which context they run in |
 | `src/icons/` | `npm run icons` | The extension's own icon set (16/32/48/128), generated from code and copied into `dist/icons/` by the build |
 | `test/` | hand-written | Vitest suites plus HTML fixtures |
@@ -52,7 +52,9 @@ yet, the row says so.
 - **The artifact.** `release/1337x-auto-links-<version>.zip`, where `<version>` is `package.json`'s
   version, stamped into the manifest at build time and matching the `v<version>` tag exactly. The
   release workflow fails when the pushed tag is not exactly `v<version>`, so this is enforced
-  mechanically rather than by habit.
+  mechanically rather than by habit. Its root is what a user loads unpacked: `manifest.json` and the
+  bundles, with `README.md` — the install steps, self-contained and linking nowhere — and `LICENSE`
+  beside them (D-011). No wrapper directory, and nothing in the zip that came from `src/` by hand.
 - No CLI, no public API, no options page, no configuration file, no telemetry in v1.
 
 ## Boundaries and invariants

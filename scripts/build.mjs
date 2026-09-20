@@ -27,6 +27,16 @@ const entryPoints = [
   { in: join(srcDir, 'background', 'index.ts'), out: 'background' },
 ];
 
+/**
+ * Files that ride in the zip beside the built extension (D-011): the install steps a user is met
+ * with when they unzip the release, and the licence the copy is required to carry. Read with
+ * `readFile` on purpose — a missing source must fail the build rather than write a zip without it.
+ */
+const zipExtraFiles = [
+  { from: join(root, 'packaging', 'README.md'), to: 'README.md' },
+  { from: join(root, 'LICENSE'), to: 'LICENSE' },
+];
+
 const { version } = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
 
 if (shouldWatch) {
@@ -90,9 +100,14 @@ async function zipRelease() {
   await mkdir(releaseDir, { recursive: true });
   const zip = new AdmZip();
   zip.addLocalFolder(distDir);
+  for (const extra of zipExtraFiles) {
+    zip.addFile(extra.to, await readFile(extra.from));
+  }
   const zipPath = join(releaseDir, `1337x-auto-links-${version}.zip`);
   zip.writeZip(zipPath);
-  console.log(`wrote ${toPosix(zipPath)}`);
+  console.log(
+    `wrote ${toPosix(zipPath)} (with ${zipExtraFiles.map((f) => f.to).join(' and ')} at its root)`,
+  );
 }
 
 function toPosix(path) {

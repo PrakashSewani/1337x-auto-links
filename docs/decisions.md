@@ -316,3 +316,48 @@ UI contract forbids).
 off-path cache write and the single cache-read retry. A stalled request can no longer hold the queue
 behind it, and a cache-read blip costs one retry instead of a page of refetches. User-visible text
 gains one reason — `timed out after 15s` — on rows whose fetch hit the deadline.
+
+## D-011: The release zip carries the install README and the licence
+
+**Date:** 2026-09-20
+
+**Context:** The artifact was only ever the built extension: `dist/` with the manifest at the zip
+root. Whoever downloaded it got a folder of JavaScript and no instructions — the install steps lived
+in the repository's `README.md` and `docs/development.md`, which the download does not contain. The
+user asked for a release where unzipping is met with steps, and asked to keep it away from any store:
+distribution stays a GitHub release asset, as it always has. A store listing remains a non-goal, so
+nothing here goes through a vendor's review or their rules about the site.
+
+**Decision:**
+
+- **The zip gains `README.md` at its root** — a short, self-contained install guide: unzip it, open
+  `chrome://extensions`, enable Developer mode, **Load unpacked**, pick the folder, open a 1337x
+  search page. It also says how to remove the extension, that unpacked installs never auto-update,
+  and which two permissions the extension asks for and why. It links to nothing: a repository link
+  would dangle inside a zip that left the repository.
+- **The zip gains `LICENSE`**, so the MIT notice travels with the copy, which the licence requires.
+- **The built extension stays the payload**: `manifest.json` sits at the zip root, so the folder a
+  user unzips is exactly the folder they load unpacked — no wrapper directory and no `dist/`
+  subfolder to guess at.
+- **The install text is authored in `packaging/README.md`** and copied in by the build script, which
+  fails loudly if either file is missing rather than writing a zip without them.
+- **A plain-language note in that README** states what the tool is and is not: a client-side helper
+  that reads pages the user's own browser can already open, hosting and indexing nothing, with what
+  the user chooses to download being their own responsibility. It is a description, not legal advice.
+
+**Rejected:** shipping the source and asking every user to install Node, run `npm ci`, build, and
+then load `dist/` (the extension is the product; the toolchain is not); a
+`1337x-auto-links-<version>/` wrapper directory (one more step, and one more chance to pick the wrong
+folder in the Load-unpacked dialog); leaving the instructions on the release page only (the download
+outlives the page, and zips get passed around); publishing to a store (already a non-goal — it would
+put a torrent tool through a vendor review and its rules, which is the opposite of what the user
+asked for).
+
+**Consequences:** the artifact contract in `docs/architecture.md` now names the two extra root files,
+and the build script owns copying them so they cannot drift from the repository. The version stays
+**0.1.0**: nothing has been released before, so `v0.1.0` is the first release rather than a bump. A
+regression that drops either file is caught twice over: the build fails outright when a source file
+is missing, and the artifact is inspected before it ships. Note the one gap this leaves — a failed
+`npm run zip` does not delete a zip an earlier successful run left in `release/`, so a local
+`release/` can hold a stale artifact. CI never sees it (fresh checkout, and `release/` is
+gitignored); it is recorded here so a stale local zip is never mistaken for the current one.

@@ -32,7 +32,7 @@ CI on `ubuntu-latest` has no such setting.
 | `npm run test` | Vitest against `test/**/*.test.ts` in a happy-dom environment |
 | `npm run build` | Bundles to `dist/` and stamps `package.json`'s version into `dist/manifest.json` |
 | `npm run watch` | esbuild in watch mode — rebuilds `dist/` on save (entry points only: a change to `src/manifest.json` needs a restart) |
-| `npm run zip` | `build`, then writes `release/1337x-auto-links-<version>.zip` |
+| `npm run zip` | `build`, then writes `release/1337x-auto-links-<version>.zip` — the built extension at the zip root with the install `README.md` and `LICENSE` beside it (D-011) |
 | `npm run icons` | Regenerates the extension's PNG icon set from code — deterministic, so rerunning with no changes produces identical bytes |
 
 ## Running the extension while developing

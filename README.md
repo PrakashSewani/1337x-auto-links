@@ -15,16 +15,20 @@ each torrent's detail page just to reach its magnet link.
 
 ## Install
 
-Nothing is published anywhere yet — build it and load it unpacked:
+Download the zip from the
+[latest release](https://github.com/PrakashSewani/1337x-auto-links/releases/latest) and unzip it —
+the extracted folder *is* the extension, with a `README.md` inside it repeating these steps. Then:
 
-```bash
-npm ci --include=dev   # --include=dev matters on some machines — see docs/development.md
-npm run build          # writes dist/
-```
+1. Open `chrome://extensions` and enable **Developer mode**.
+2. Choose **Load unpacked** and pick the folder you unzipped.
+3. Open a 1337x search page — every result row gains its magnet and `.torrent` controls.
 
-Then `chrome://extensions` → **Developer mode** → **Load unpacked** → pick the `dist/` folder.
-Reload the extension card after each rebuild, then refresh the page. `npm run zip` produces the same
-files as a release zip.
+Nothing is in a browser store, and an unpacked install never auto-updates: to move to a newer
+release, unzip it and load it the same way, replacing the old copy.
+
+**From source instead:** `npm ci --include=dev` (the flag matters on some machines — see
+[docs/development.md](./docs/development.md)), then `npm run build` writes `dist/`, which you load
+unpacked the same way. `npm run zip` produces the release artifact yourself.
 
 ## How it works
 
