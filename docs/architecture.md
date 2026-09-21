@@ -39,8 +39,11 @@ yet, the row says so.
   `failed`, `missing`). While a row is unresolved both are
   disabled; once its detail page resolves they enable, and the two are independent — a row can have a
   magnet and no `.torrent` file. The magnet control hands the row's magnet URI to the OS torrent
-  client without navigating away. The file control saves the row's `.torrent` through the browser's
-  download manager and reports `saved` or `failed` afterwards. A link that cannot be resolved says so
+  client without navigating away; once its row resolves it is a real `magnet:` link — an `<a>` whose
+  `href` is the URI exactly as the detail page wrote it, so the browser's own right-click copy and
+  drag work as they do on a torrent site — and while a row has nothing to carry it has no `href` at
+  all, so no link action is offered (D-013; no `contextMenus` anywhere). The file control saves the
+  row's `.torrent` through the browser's download manager and reports `saved` or `failed` afterwards. A link that cannot be resolved says so
   on that control rather than failing silently.
 - **The permissions.** `storage` and `downloads` only. The content script is declared for
   `https://1337x.to/*`; there are no host permissions and no other origins. Any addition to this

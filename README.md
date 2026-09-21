@@ -35,7 +35,9 @@ unpacked the same way. `npm run zip` produces the release artifact yourself.
 1337x search results list torrents but not their magnet links — those exist only on each torrent's
 detail page. The extension resolves them in the background for the rows you are looking at, caches
 the answers, and so can offer the magnet (hands off to your torrent client) and the `.torrent` file
-(saves it through the browser) right in the list.
+(saves it through the browser) right in the list. A resolved magnet control is a real magnet link —
+right-click it and the browser's own **Copy link address** copies the magnet, exactly as on a
+torrent site.
 
 There is no server, no account, and no telemetry. Every request comes from your own browser session
 — which is also the only kind of request the site answers at all.

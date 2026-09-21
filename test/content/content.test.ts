@@ -82,9 +82,15 @@ function buttonAt(doc: Document, selector: string, index: number): HTMLButtonEle
   return button;
 }
 
-/** The `data-icon` marker of the glyph currently rendered on a button. */
-function glyphOf(button: HTMLButtonElement): string | null {
-  return button.querySelector('svg')?.getAttribute('data-icon') ?? null;
+function anchorAt(doc: Document, selector: string, index: number): HTMLAnchorElement {
+  const anchor = doc.querySelectorAll<HTMLAnchorElement>(selector)[index];
+  if (anchor === undefined) throw new Error(`expected a ${selector} at index ${index}`);
+  return anchor;
+}
+
+/** The `data-icon` marker of the glyph currently rendered on a control. */
+function glyphOf(control: Element): string | null {
+  return control.querySelector('svg')?.getAttribute('data-icon') ?? null;
 }
 
 /** A fake worker that answers cache reads from `entries`, accepts writes, and defers downloads. */
@@ -139,14 +145,16 @@ describe('runContentScript', () => {
     expect(fetchMock.mock.calls[0]?.[0]).toBe(THIRD_ROW_URL);
 
     // The cached rows were rendered straight from the cache, with no fetch.
-    const magnets = doc.querySelectorAll<HTMLButtonElement>('.x-1337x-auto-links-magnet');
+    const magnets = doc.querySelectorAll<HTMLAnchorElement>('.x-1337x-auto-links-magnet');
     const torrents = doc.querySelectorAll<HTMLButtonElement>('.x-1337x-auto-links-torrent');
-    expect(magnets[0]?.disabled).toBe(false);
-    expect(glyphOf(magnets[0] as HTMLButtonElement)).toBe('magnet');
+    expect(magnets[0]?.getAttribute('href')).toBe('magnet:?xt=urn:btih:cached');
+    expect(magnets[0]?.hasAttribute('aria-disabled')).toBe(false);
+    expect(glyphOf(magnets[0] as HTMLAnchorElement)).toBe('magnet');
     expect(torrents[0]?.disabled).toBe(true);
     expect(torrents[0]?.getAttribute('data-state')).toBe('missing');
     expect(torrents[0]?.title).toBe('no .torrent');
-    expect(magnets[1]?.disabled).toBe(true);
+    expect(magnets[1]?.hasAttribute('href')).toBe(false);
+    expect(magnets[1]?.getAttribute('aria-disabled')).toBe('true');
     expect(magnets[1]?.getAttribute('data-state')).toBe('missing');
     expect(magnets[1]?.title).toBe('no magnet');
     expect(torrents[1]?.disabled).toBe(false);
@@ -156,6 +164,28 @@ describe('runContentScript', () => {
     const writes = cacheWrites(sendMessage);
     expect(writes).toHaveLength(1);
     expect(writes[0]?.id).toBe('6722815');
+  });
+
+  it('renders a cached magnet as a real link carrying the URI verbatim', async () => {
+    installChrome({
+      '6722910': { magnet: 'magnet:?xt=urn:btih:cached&dn=Name', torrentUrl: null, at: 1 },
+      '6722705': { magnet: null, torrentUrl: 'https://1337x.to/cached.torrent', at: 2 },
+    });
+    const fetchMock = vi.fn(() => Promise.resolve(htmlResponse('<html></html>')));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const doc = parseListPage();
+    await runContentScript(doc, PAGE_URL);
+
+    const magnets = doc.querySelectorAll<HTMLAnchorElement>('.x-1337x-auto-links-magnet');
+    // A row cached with a magnet is an anchor whose href is the cached URI, exactly as stored.
+    expect(magnets[0]?.tagName).toBe('A');
+    expect(magnets[0]?.getAttribute('href')).toBe('magnet:?xt=urn:btih:cached&dn=Name');
+    expect(magnets[0]?.hasAttribute('aria-disabled')).toBe(false);
+    // A row cached with no magnet is not a link at all (D-013).
+    expect(magnets[1]?.tagName).toBe('A');
+    expect(magnets[1]?.hasAttribute('href')).toBe(false);
+    expect(magnets[1]?.getAttribute('aria-disabled')).toBe('true');
   });
 
   it('does not cache a row whose fetch failed', async () => {
@@ -176,16 +206,23 @@ describe('runContentScript', () => {
 
     // And the failure is visible on the whole row: with neither link known, both buttons say so
     // rather than leaving the magnet looking like it is still loading.
-    const magnets = doc.querySelectorAll<HTMLButtonElement>('.x-1337x-auto-links-magnet');
+    const magnets = doc.querySelectorAll<HTMLAnchorElement>('.x-1337x-auto-links-magnet');
     const torrents = doc.querySelectorAll<HTMLButtonElement>('.x-1337x-auto-links-torrent');
     expect(magnets).toHaveLength(3);
     expect(torrents).toHaveLength(3);
-    for (const button of [...magnets, ...torrents]) {
-      expect(glyphOf(button)).toBe('alert');
-      expect(button.getAttribute('data-state')).toBe('failed');
-      expect(button.getAttribute('aria-label')).toBe('blocked');
-      expect(button.title).toBe('blocked');
-      expect(button.disabled).toBe(true);
+    for (const control of [...magnets, ...torrents]) {
+      expect(glyphOf(control)).toBe('alert');
+      expect(control.getAttribute('data-state')).toBe('failed');
+      expect(control.getAttribute('aria-label')).toBe('blocked');
+      expect(control.title).toBe('blocked');
+    }
+    // The magnet offers no link to copy while its row is unresolved, and the button is disabled.
+    for (const magnet of magnets) {
+      expect(magnet.hasAttribute('href')).toBe(false);
+      expect(magnet.getAttribute('aria-disabled')).toBe('true');
+    }
+    for (const torrent of torrents) {
+      expect(torrent.disabled).toBe(true);
     }
   });
 
@@ -311,15 +348,20 @@ describe('runContentScript', () => {
     const doc = parseListPage();
     await runContentScript(doc, PAGE_URL);
 
-    const magnet = buttonAt(doc, '.x-1337x-auto-links-magnet', 0);
-    expect(magnet.disabled).toBe(false);
+    // The control itself is an anchor now (D-013), carrying the row's magnet.
+    const magnet = anchorAt(doc, '.x-1337x-auto-links-magnet', 0);
+    expect(magnet.getAttribute('href')).toBe('magnet:?xt=urn:btih:1111111111');
 
     const clickSpy = vi
       .spyOn(HTMLAnchorElement.prototype, 'click')
       .mockImplementation(() => undefined);
     const locationBefore = window.location.href;
 
-    magnet.click();
+    // Dispatch at the control rather than calling `click()`: now that the control is an anchor,
+    // `click()` would hit the spied method too. The dispatch result pins the one handoff path — the
+    // control's own href default is prevented, so only `handOffMagnet`'s temporary anchor fires.
+    const defaultPrevented = magnet.dispatchEvent(new MouseEvent('click', { cancelable: true }));
+    expect(defaultPrevented).toBe(false);
 
     // Exactly one handoff anchor was created and clicked...
     expect(clickSpy).toHaveBeenCalledTimes(1);
@@ -373,7 +415,7 @@ describe('runContentScript hover promotion', () => {
     await runContentScript(doc, PAGE_URL);
     expect(fetchMock).not.toHaveBeenCalled();
 
-    const magnet = buttonAt(doc, '.x-1337x-auto-links-magnet', 0);
+    const magnet = anchorAt(doc, '.x-1337x-auto-links-magnet', 0);
     const row = doc.querySelector('tbody td.coll-1.name')?.closest('tr') ?? null;
     if (row === null) throw new Error('expected a result row');
 
@@ -382,7 +424,7 @@ describe('runContentScript hover promotion', () => {
 
     // The row was cached, never queued, so hovering it fetches nothing and changes nothing.
     expect(fetchMock).not.toHaveBeenCalled();
-    expect(magnet.disabled).toBe(false);
+    expect(magnet.getAttribute('href')).toBe('magnet:?xt=urn:btih:1111111111');
     expect(glyphOf(magnet)).toBe('magnet');
   });
 });
@@ -412,14 +454,17 @@ describe('runContentScript reliability (D-010)', () => {
       await vi.advanceTimersByTimeAsync(15_000);
       await done;
 
-      const magnet = buttonAt(doc, '.x-1337x-auto-links-magnet', 0);
+      const magnet = anchorAt(doc, '.x-1337x-auto-links-magnet', 0);
       const torrent = buttonAt(doc, '.x-1337x-auto-links-torrent', 0);
-      for (const button of [magnet, torrent]) {
-        expect(glyphOf(button)).toBe('alert');
-        expect(button.getAttribute('data-state')).toBe('failed');
-        expect(button.getAttribute('aria-label')).toBe('timed out after 15s');
-        expect(button.title).toBe('timed out after 15s');
+      for (const control of [magnet, torrent]) {
+        expect(glyphOf(control)).toBe('alert');
+        expect(control.getAttribute('data-state')).toBe('failed');
+        expect(control.getAttribute('aria-label')).toBe('timed out after 15s');
+        expect(control.title).toBe('timed out after 15s');
       }
+      // A timed-out row carries no magnet, so its control is not a link.
+      expect(magnet.hasAttribute('href')).toBe(false);
+      expect(magnet.getAttribute('aria-disabled')).toBe('true');
       // A timed-out row is neither cached nor retried.
       expect(cacheWrites(sendMessage)).toHaveLength(0);
       expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -501,8 +546,8 @@ describe('runContentScript reliability (D-010)', () => {
     // Exactly one retry, and the row rendered from the cache the retry returned.
     expect(reads).toBe(2);
     expect(fetchMock).not.toHaveBeenCalled();
-    const magnet = buttonAt(doc, '.x-1337x-auto-links-magnet', 0);
-    expect(magnet.disabled).toBe(false);
+    const magnet = anchorAt(doc, '.x-1337x-auto-links-magnet', 0);
+    expect(magnet.getAttribute('href')).toBe('magnet:?xt=urn:btih:cached');
     expect(glyphOf(magnet)).toBe('magnet');
   });
 
@@ -580,13 +625,14 @@ describe('runContentScript reliability (D-010)', () => {
       await vi.advanceTimersByTimeAsync(15_000);
       await vi.advanceTimersByTimeAsync(0);
 
-      const magnet = buttonAt(doc, '.x-1337x-auto-links-magnet', 0);
+      const magnet = anchorAt(doc, '.x-1337x-auto-links-magnet', 0);
       const torrent = buttonAt(doc, '.x-1337x-auto-links-torrent', 0);
-      for (const button of [magnet, torrent]) {
-        expect(glyphOf(button)).toBe('alert');
-        expect(button.getAttribute('data-state')).toBe('failed');
-        expect(button.getAttribute('aria-label')).toBe('timed out after 15s');
+      for (const control of [magnet, torrent]) {
+        expect(glyphOf(control)).toBe('alert');
+        expect(control.getAttribute('data-state')).toBe('failed');
+        expect(control.getAttribute('aria-label')).toBe('timed out after 15s');
       }
+      expect(magnet.hasAttribute('href')).toBe(false);
       expect(cacheWrites(sendMessage)).toHaveLength(0);
 
       await done;
@@ -629,8 +675,8 @@ describe('runContentScript reliability (D-010)', () => {
       await done;
 
       // The second row resolved normally, and neither fetch was retried.
-      const magnet = buttonAt(doc, '.x-1337x-auto-links-magnet', 1);
-      expect(magnet.disabled).toBe(false);
+      const magnet = anchorAt(doc, '.x-1337x-auto-links-magnet', 1);
+      expect(magnet.getAttribute('href')).toBe('magnet:?xt=urn:btih:second');
       expect(glyphOf(magnet)).toBe('magnet');
       expect(fetchMock).toHaveBeenCalledTimes(2);
     } finally {

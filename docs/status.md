@@ -12,14 +12,15 @@ rule 4. Keep exactly one phase `in progress` — and once every phase is complet
 | 2 | Core behavior: the one workflow the tool exists for, end to end, with tests | **complete** — implemented, independently verified, and the verification's own gaps closed |
 | 3 | Polish: README, icons, error messages, docs — the parts users judge first | **complete** — the product name, the pictogram controls, hover priority, the icon set, the D-010 loading-path hardening and the D-011 release packaging all landed |
 | 4 | Release: tag `v0.1.0`, artifacts published, install path verified from a clean machine | **complete** — `v0.1.0` is tagged and published with the zip attached, and that zip was installed unpacked in Brave (card reading `0.1.0`) with the workflow then confirmed end to end on a real page, 2026-09-20 — on the owner's own machine, which carries this checkout, not on a bare one |
+| 5 | Right-click copy: the resolved magnet control becomes a real `magnet:` link (D-013) | **complete** — implemented, independently verified 2026-09-21 with mutants; the native menu was confirmed by the owner in Brave (acceptance step 6) |
+| 6 | Release `v0.2.0`: the right-click copy ships | **in progress** |
 
 ## Current handoff
 
-**Phase:** none — every phase is complete, so the tracker's "exactly one phase `in progress`" rule has
-nothing to point at. Phase 4 closed on 2026-09-20: the owner downloaded the zip from the `v0.1.0`
-release page, loaded it unpacked in Brave — card reading `0.1.0` — and ran the acceptance test below
-against a live page. Nothing is in progress; what is left is listed under **Next action** and
-**Also open**.
+**Phase:** 6 — the `v0.2.0` release is in progress in this pass: the owner confirmed the right-click
+copy works (acceptance step 6, 2026-09-21), and the bump, artifact, tag and CI run follow. Phase 5
+(D-013) closed on 2026-09-21; phase 4 closed on 2026-09-20 with the `v0.1.0` zip installed unpacked in
+Brave and the acceptance test run against a live page.
 
 **Landed on the way to `v0.1.0` (D-005 through D-011):**
 
@@ -58,6 +59,22 @@ against a live page. Nothing is in progress; what is left is listed under **Next
   exactly the folder they load unpacked. Distribution is still a GitHub release asset and nothing
   else — no store listing, no registry.
 
+**Landed after `v0.1.0` (D-013):**
+
+- **D-013** — the resolved magnet control is now a real `magnet:` link. The control is created as an
+  `<a>`; once its row resolves it carries an `href` with the URI exactly as the detail page wrote it
+  (the reader's whitespace trim at read time is the only transformation anywhere in the pipeline), so
+  Chrome/Brave's own right-click **Copy link address**, the URI in the status bar on hover and
+  drag-to-client work on it the way they do on a torrent site — with no new permission, because the
+  browser provides all of that for any link (`contextMenus` was considered and refused). While there
+  is nothing to carry — injected, unresolved, magnet-less or failed — the control has no `href` at all
+  and is marked `aria-disabled="true"`, so no link action is offered and the visuals are unchanged
+  (the stylesheet's `:disabled` selectors became the anchor's own markers). The click path is
+  untouched: the default is prevented and the handoff still happens through the temporary anchor with
+  user activation, so there is exactly one handoff path. The `.torrent` control, the manifest and the
+  permission set (`storage`, `downloads`) are unchanged. `docs/product.md`, `docs/architecture.md`
+  and `docs/development.md` carry the matching contract wording and troubleshooting row.
+
 **Verified (observed, not assumed):**
 
 - **The released artifact was installed and used in Brave, 2026-09-20** — the owner downloaded the zip
@@ -74,7 +91,8 @@ against a live page. Nothing is in progress; what is left is listed under **Next
 - **Hover promotion worked on a live page** — a hovered row's icons enabled before the rows above it.
 - **The from-source path was exercised too** — the owner also ran `npm run build` and it worked, so the
   README's `dist/` route is not merely documented.
-- `npm run check` exits 0 — **112 tests across 10 files**.
+- `npm run check` exits 0 — 112 tests across 10 files at the `v0.1.0` verification; **120 tests across
+  10 files** after D-013.
 - **`v0.1.0` is released** — the tag points at `986bf08`, the Release workflow ran green in 25 s, and
   the published asset was downloaded back and inspected: `manifest.json` at its root stamped `0.1.0`,
   the bundles and icons, and `README.md` with `LICENSE` beside them. That run exercised the
@@ -107,24 +125,43 @@ against a live page. Nothing is in progress; what is left is listed under **Next
   resolution, and the cache-read retry cut to one attempt — and a named test caught every one. The
   first verification named five claims with no test behind them; all five are now closed and the
   closures re-checked independently.
+- D-013 was held to the same mutant standard by a read-only verification: **eight mutations** were
+  applied. A named test caught **seven** — the `href` never set, a stale `href` never cleared,
+  `aria-disabled` dropped, the `preventDefault` removed, the magnet hover gate reverted, the
+  disabled-look selector dropped, and `text-decoration` dropped. The eighth, `setAttribute` swapped
+  for the `href` property, is unobservable in the DOM shim and is listed under *not verified* rather
+  than papered over. Two further mutations on the write path — encoding the URI, and trimming it —
+  are both caught by the test added for exactly that: `writes the magnet to the attribute without
+  encoding or trimming`. The verification restored the tree byte-identically and re-ran the full
+  check.
+- D-013's source footprint was inspected, not assumed: it is only `src/core/controls.ts`,
+  `src/content/index.ts`, `src/content/content.css` and the three test files — `src/manifest.json`,
+  `src/core/detail.ts`, `src/background/` and `scripts/` untouched, no dependency or permission
+  added, `src/core/` still imports no `chrome.*`, and the injected placement is unchanged.
+- **The right-click copy works in Brave, 2026-09-21** — the owner reported it working on a resolved
+  row's magnet control (acceptance step 6), ahead of the `v0.2.0` release.
 
 **Not verified — browser only, by nature:** how the icons look in a row at the page's font size — the
 owner used both controls and reported nothing wrong with them, which is not a judgement on their
 appearance at that size. Nor was acceptance-test step 3 reported on either way, so nothing here claims
 its console output was checked. And the install ran on the owner's own machine, which carries this
 checkout: what phase 4's scope cell rests on is the release artifact being installed and used, not a
-machine with none of this repository on it.
+machine with none of this repository on it. D-013 left one item here: the `setAttribute`-vs-property
+choice behind the magnet URI, which the DOM shim cannot tell apart because its `href` setter delegates
+straight to `setAttribute`; the native **Copy link address** menu it serves was confirmed by the owner
+in Brave (step 6, above).
 
-**Next action:** no release is pending — every phase is complete and `v0.1.0` is the shipped artifact.
-What is left is the **Also open** list below: the D-010 batching follow-up, `registerMessageHandler`'s
+**Next action:** the `v0.2.0` release is being made in this pass (phase 6): bump, artifact, tag, CI.
+The owner's acceptance check for it is already done (step 6, 2026-09-21). What remains afterwards is
+the **Also open** list below: the D-010 batching follow-up, `registerMessageHandler`'s
 rejection → `sendResponse(undefined)` mapping still being untested, and the `test/icons.test.ts`
 environment note. Any future release re-runs the acceptance test below against the new zip first.
 
 ### Acceptance test
 
-Run once and passed on 2026-09-20 — the owner, in Brave, from the `v0.1.0` release zip installed
-unpacked. It is the re-test checklist for any future release: these are the behaviours no fixture can
-cover.
+Run in full — steps 1–5 on 2026-09-20 by the owner in Brave from the `v0.1.0` release zip installed
+unpacked, step 6 on 2026-09-21 from the local build. It is the re-test checklist for any future
+release: these are the behaviours no fixture can cover.
 
 1. Download `1337x-auto-links-0.1.0.zip` from the release page, unzip it, and load the unzipped folder
    unpacked in `chrome://extensions`; confirm the card's version reads **0.1.0**. For a local build
@@ -139,10 +176,16 @@ cover.
 5. Report anything else: a control stuck on the alert glyph, a `missing` where the page clearly has
    that link, or a row that never leaves `saving…`. A row reporting `timed out after 15s` is D-010's
    deadline doing its job, not a new bug.
+6. Right-click a resolved row's magnet icon: the browser's own **Copy link address** should be in the
+   menu and copy the magnet URI. On a row that is still unresolved, or that has no magnet, the option
+   must be absent — the control is deliberately not a link there (D-013, added and passed
+   2026-09-21).
 
 **Also open:** a fourth request type that batches a page's writes into one message — D-010's
 follow-up, left for later because serialising already gets most of the win and a new message is a
 contract change; `registerMessageHandler`'s rejection → `sendResponse(undefined)` mapping is still
 untested, because the handler is not exported; `test/icons.test.ts` runs in the Node environment (the
 only test that reads files — the rest use `?raw` HTML); a Chrome Web Store listing stays a non-goal in
-`product.md`.
+`product.md`; and a stray `.vitest/` report file — some editor Vitest integrations write one — fails
+`format:check` because neither `.prettierignore` nor `.gitignore` covers `.vitest/` (reproduced
+2026-09-21; one ignore line closes it).

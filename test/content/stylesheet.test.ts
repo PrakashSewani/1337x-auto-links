@@ -89,3 +89,24 @@ describe('the saving stylesheet', () => {
     expect(body).toMatch(/animation:\s*none/);
   });
 });
+
+describe('the magnet anchor stylesheet (D-013)', () => {
+  it('gates the magnet hover and active washes on a live href', () => {
+    // A href-less magnet must not react like a clickable one, exactly as a disabled button does not:
+    // the anchor's own gate is `[href]` where the button's is `:not(:disabled)`.
+    expect(ruleBody('.x-1337x-auto-links-magnet[href]:hover')).toMatch(/background-color/);
+    expect(ruleBody('.x-1337x-auto-links-magnet[href]:active')).toMatch(/background-color/);
+  });
+
+  it('keys the disabled look off the absence of href', () => {
+    const body = ruleBody('.x-1337x-auto-links-magnet:not([href])');
+
+    expect(body).toContain('opacity: 0.88');
+    // Without this the href-less anchor keeps the base rule's `cursor: pointer`.
+    expect(body).toContain('cursor: default');
+  });
+
+  it('removes the underline an anchor carries by default', () => {
+    expect(ruleBody('.x-1337x-auto-links-magnet,')).toContain('text-decoration: none');
+  });
+});

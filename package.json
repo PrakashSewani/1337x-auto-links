@@ -1,6 +1,6 @@
 {
   "name": "1337x-auto-links",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "Chromium MV3 extension that injects Magnet and .torrent buttons into 1337x result rows.",

@@ -29,7 +29,9 @@ The contract users depend on — the injected controls and what they promise:
   control, icon-only, inline after the title. Each carries an accessible name, with the reason or the
   in-flight state in its tooltip; the state is also a glyph (saving, saved, failed, or missing).
 - `Magnet` hands the row's magnet URI to the OS torrent client without navigating away from the
-  results page.
+  results page. Once the row is resolved the control is a real magnet link: the browser's own
+  right-click menu can copy it, exactly as it can on a torrent site, and the link can be dragged.
+  A row with nothing to carry is not a link at all.
 - `.torrent` saves the row's `.torrent` file through the browser's downloads; no client handoff.
 - **Prefetch**: results pages resolve their magnets in the background as the page loads — queued and
   rate-limited, never a burst of parallel requests — and results are cached, so controls act

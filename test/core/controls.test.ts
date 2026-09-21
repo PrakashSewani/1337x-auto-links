@@ -20,13 +20,13 @@ function query<T extends Element>(root: ParentNode, selector: string): T {
   return element;
 }
 
-/** The `data-icon` marker of the glyph currently rendered on a button, or `null` when none is. */
-function glyphOf(button: HTMLButtonElement): string | null {
-  return button.querySelector('svg')?.getAttribute('data-icon') ?? null;
+/** The `data-icon` marker of the glyph currently rendered on a control, or `null` when none is. */
+function glyphOf(control: Element): string | null {
+  return control.querySelector('svg')?.getAttribute('data-icon') ?? null;
 }
 
-function ariaLabel(button: HTMLButtonElement): string | null {
-  return button.getAttribute('aria-label');
+function ariaLabel(control: Element): string | null {
+  return control.getAttribute('aria-label');
 }
 
 /** The layers of a button's glyph that the stylesheet spins while a save is in flight (D-009). */
@@ -61,12 +61,13 @@ describe('injectControls placement', () => {
     // fails here.
     expect(titleLink.nextElementSibling).toBe(container);
 
-    const magnet = query<HTMLButtonElement>(container, '.x-1337x-auto-links-magnet');
+    const magnet = query<HTMLAnchorElement>(container, '.x-1337x-auto-links-magnet');
     const torrent = query<HTMLButtonElement>(container, '.x-1337x-auto-links-torrent');
-    expect(magnet.type).toBe('button');
+    expect(magnet.tagName).toBe('A');
+    expect(magnet.hasAttribute('href')).toBe(false);
+    expect(magnet.getAttribute('aria-disabled')).toBe('true');
     expect(glyphOf(magnet)).toBe('magnet');
     expect(ariaLabel(magnet)).toBe('Magnet');
-    expect(magnet.disabled).toBe(true);
     expect(torrent.type).toBe('button');
     expect(glyphOf(torrent)).toBe('file');
     expect(ariaLabel(torrent)).toBe('Save .torrent file');
@@ -139,7 +140,8 @@ describe('RowControls.setLinks', () => {
 
     controls.setLinks({ magnet: 'magnet:?xt=urn:btih:abc', torrentUrl: 'https://x/a.torrent' });
 
-    expect(controls.magnet.disabled).toBe(false);
+    expect(controls.magnet.getAttribute('href')).toBe('magnet:?xt=urn:btih:abc');
+    expect(controls.magnet.hasAttribute('aria-disabled')).toBe(false);
     expect(glyphOf(controls.magnet)).toBe('magnet');
     expect(ariaLabel(controls.magnet)).toBe('Magnet');
     expect(controls.magnet.hasAttribute('data-state')).toBe(false);
@@ -154,8 +156,9 @@ describe('RowControls.setLinks', () => {
 
     controls.setLinks({ magnet: 'magnet:?xt=urn:btih:abc', torrentUrl: null });
 
-    // The magnet stays usable...
-    expect(controls.magnet.disabled).toBe(false);
+    // The magnet stays a live link...
+    expect(controls.magnet.getAttribute('href')).toBe('magnet:?xt=urn:btih:abc');
+    expect(controls.magnet.hasAttribute('aria-disabled')).toBe(false);
     expect(glyphOf(controls.magnet)).toBe('magnet');
     // ...and only its own button is marked missing, showing the slashed file variant.
     expect(controls.torrent.disabled).toBe(true);
@@ -170,7 +173,8 @@ describe('RowControls.setLinks', () => {
 
     controls.setLinks({ magnet: null, torrentUrl: 'https://x/a.torrent' });
 
-    expect(controls.magnet.disabled).toBe(true);
+    expect(controls.magnet.hasAttribute('href')).toBe(false);
+    expect(controls.magnet.getAttribute('aria-disabled')).toBe('true');
     expect(glyphOf(controls.magnet)).toBe('magnet-missing');
     expect(controls.magnet.getAttribute('data-state')).toBe('missing');
     expect(controls.magnet.title).toBe('no magnet');
@@ -186,7 +190,8 @@ describe('RowControls.setLinks', () => {
     expect(controls.magnet.getAttribute('data-state')).toBe('missing');
     expect(glyphOf(controls.magnet)).toBe('magnet-missing');
     expect(controls.magnet.title).toBe('no magnet');
-    expect(controls.magnet.disabled).toBe(true);
+    expect(controls.magnet.hasAttribute('href')).toBe(false);
+    expect(controls.magnet.getAttribute('aria-disabled')).toBe('true');
     expect(controls.torrent.getAttribute('data-state')).toBe('missing');
     expect(glyphOf(controls.torrent)).toBe('file-missing');
     expect(controls.torrent.title).toBe('no .torrent');
@@ -239,7 +244,7 @@ describe('RowControls save lifecycle', () => {
     controls.setSaving();
 
     // The save lifecycle touches only the .torrent button; the magnet stays live throughout.
-    expect(controls.magnet.disabled).toBe(false);
+    expect(controls.magnet.hasAttribute('aria-disabled')).toBe(false);
     expect(glyphOf(controls.magnet)).toBe('magnet');
     expect(ariaLabel(controls.magnet)).toBe('Magnet');
   });
@@ -250,7 +255,7 @@ describe('RowControls save lifecycle', () => {
 
     controls.setSaved();
 
-    expect(controls.magnet.disabled).toBe(false);
+    expect(controls.magnet.hasAttribute('aria-disabled')).toBe(false);
     expect(glyphOf(controls.magnet)).toBe('magnet');
   });
 
@@ -301,7 +306,7 @@ describe('RowControls save lifecycle', () => {
 
     controls.setFailed('download blocked');
 
-    expect(controls.magnet.disabled).toBe(false);
+    expect(controls.magnet.hasAttribute('aria-disabled')).toBe(false);
     expect(glyphOf(controls.magnet)).toBe('magnet');
     expect(controls.magnet.hasAttribute('title')).toBe(false);
   });
@@ -313,13 +318,16 @@ describe('RowControls.setUnresolved', () => {
 
     controls.setUnresolved('HTTP 403');
 
-    for (const button of [controls.magnet, controls.torrent]) {
-      expect(glyphOf(button)).toBe('alert');
-      expect(button.getAttribute('data-state')).toBe('failed');
-      expect(ariaLabel(button)).toBe('HTTP 403');
-      expect(button.title).toBe('HTTP 403');
-      expect(button.disabled).toBe(true);
+    for (const control of [controls.magnet, controls.torrent]) {
+      expect(glyphOf(control)).toBe('alert');
+      expect(control.getAttribute('data-state')).toBe('failed');
+      expect(ariaLabel(control)).toBe('HTTP 403');
+      expect(control.title).toBe('HTTP 403');
     }
+    // Both are unavailable, and the magnet carries no link, so none is offered to copy (D-013).
+    expect(controls.magnet.hasAttribute('href')).toBe(false);
+    expect(controls.magnet.getAttribute('aria-disabled')).toBe('true');
+    expect(controls.torrent.disabled).toBe(true);
   });
 
   it('falls back to a non-empty name and tooltip when the unresolved reason is empty', () => {
@@ -327,13 +335,15 @@ describe('RowControls.setUnresolved', () => {
 
     controls.setUnresolved('');
 
-    for (const button of [controls.magnet, controls.torrent]) {
-      expect(glyphOf(button)).toBe('alert');
-      expect(button.getAttribute('data-state')).toBe('failed');
-      expect(ariaLabel(button)).toBe('could not load details');
-      expect(button.title).toBe('could not load details');
-      expect(button.disabled).toBe(true);
+    for (const control of [controls.magnet, controls.torrent]) {
+      expect(glyphOf(control)).toBe('alert');
+      expect(control.getAttribute('data-state')).toBe('failed');
+      expect(ariaLabel(control)).toBe('could not load details');
+      expect(control.title).toBe('could not load details');
     }
+    expect(controls.magnet.hasAttribute('href')).toBe(false);
+    expect(controls.magnet.getAttribute('aria-disabled')).toBe('true');
+    expect(controls.torrent.disabled).toBe(true);
   });
 
   it('treats a whitespace-only unresolved reason as absent', () => {
@@ -364,6 +374,78 @@ describe('RowControls.setUnresolved', () => {
 
     expect(controls.magnet.hasAttribute('title')).toBe(false);
     expect(controls.torrent.hasAttribute('title')).toBe(false);
+  });
+});
+
+describe('RowControls magnet link (D-013)', () => {
+  it('carries the resolved magnet verbatim on an anchor', () => {
+    const controls = singleControls(NAME_CELL_ROW(''));
+
+    controls.setLinks({ magnet: 'magnet:?xt=urn:btih:abc&dn=Name', torrentUrl: null });
+
+    // A real link, whose href is the URI exactly as the detail page wrote it — never normalised.
+    expect(controls.magnet.tagName).toBe('A');
+    expect(controls.magnet.getAttribute('href')).toBe('magnet:?xt=urn:btih:abc&dn=Name');
+    expect(controls.magnet.hasAttribute('aria-disabled')).toBe(false);
+    expect(ariaLabel(controls.magnet)).toBe('Magnet');
+    expect(controls.magnet.hasAttribute('title')).toBe(false);
+    expect(glyphOf(controls.magnet)).toBe('magnet');
+  });
+
+  it('writes the magnet to the attribute without encoding or trimming', () => {
+    const controls = singleControls(NAME_CELL_ROW(''));
+
+    controls.setLinks({
+      magnet: ' magnet:?xt=urn:btih:abc&dn=Name With Space ',
+      torrentUrl: null,
+    });
+
+    // Pins the write path against a "sanitise the magnet" regression: the internal raw space must
+    // not be percent-encoded and the leading/trailing spaces must not be trimmed (a transformation
+    // would change the value). The setAttribute-vs-property choice behind D-013 is a real-browser
+    // behaviour this DOM shim cannot observe, so that distinction is not what this test guarantees.
+    expect(controls.magnet.getAttribute('href')).toBe(
+      ' magnet:?xt=urn:btih:abc&dn=Name With Space ',
+    );
+  });
+
+  it('is not a link while there is nothing to carry', () => {
+    const controls = singleControls(NAME_CELL_ROW(''));
+
+    // Injected and unresolved: still the magnet glyph and name, but no href to copy.
+    expect(controls.magnet.tagName).toBe('A');
+    expect(controls.magnet.hasAttribute('href')).toBe(false);
+    expect(controls.magnet.getAttribute('aria-disabled')).toBe('true');
+    expect(glyphOf(controls.magnet)).toBe('magnet');
+    expect(ariaLabel(controls.magnet)).toBe('Magnet');
+
+    // Resolved, but the page carries no magnet: the slashed variant names the reason, still no link.
+    controls.setLinks({ magnet: null, torrentUrl: 'https://x/a.torrent' });
+    expect(controls.magnet.hasAttribute('href')).toBe(false);
+    expect(controls.magnet.getAttribute('aria-disabled')).toBe('true');
+    expect(glyphOf(controls.magnet)).toBe('magnet-missing');
+    expect(controls.magnet.getAttribute('data-state')).toBe('missing');
+    expect(controls.magnet.title).toBe('no magnet');
+
+    // A row whose detail page could not be read at all: the reason, and still no link.
+    controls.setUnresolved('HTTP 403');
+    expect(controls.magnet.hasAttribute('href')).toBe(false);
+    expect(controls.magnet.getAttribute('aria-disabled')).toBe('true');
+    expect(glyphOf(controls.magnet)).toBe('alert');
+    expect(ariaLabel(controls.magnet)).toBe('HTTP 403');
+    expect(controls.magnet.title).toBe('HTTP 403');
+  });
+
+  it('clears the href when a resolved magnet later goes missing', () => {
+    const controls = singleControls(NAME_CELL_ROW(''));
+
+    controls.setLinks({ magnet: 'magnet:?xt=urn:btih:abc', torrentUrl: null });
+    expect(controls.magnet.getAttribute('href')).toBe('magnet:?xt=urn:btih:abc');
+
+    // The one render path is defensive: a state with no magnet must not leave the stale link behind.
+    controls.setLinks({ magnet: null, torrentUrl: null });
+    expect(controls.magnet.hasAttribute('href')).toBe(false);
+    expect(controls.magnet.getAttribute('aria-disabled')).toBe('true');
   });
 });
 

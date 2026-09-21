@@ -32,6 +32,7 @@
   font: inherit;
   line-height: 1;
   cursor: pointer;
+  text-decoration: none;
   transition:
     background-color 120ms ease,
     opacity 120ms ease;
@@ -41,12 +42,12 @@
  * A translucent mid-grey wash is the same affordance on a light page (it darkens) and a dark one
  * (it lightens), without the extension having to know which it is on.
  */
-.x-1337x-auto-links-magnet:hover:not(:disabled),
+.x-1337x-auto-links-magnet[href]:hover,
 .x-1337x-auto-links-torrent:hover:not(:disabled) {
   background-color: rgb(127 127 127 / 28%);
 }
 
-.x-1337x-auto-links-magnet:active:not(:disabled),
+.x-1337x-auto-links-magnet[href]:active,
 .x-1337x-auto-links-torrent:active:not(:disabled) {
   background-color: rgb(127 127 127 / 45%);
 }
@@ -62,7 +63,7 @@
  * and opacity, so a `saving…` or `missing` state still reads at a glance. Fading it to invisibility,
  * as a thin grey glyph on `opacity: .5` did, is exactly what to avoid.
  */
-.x-1337x-auto-links-magnet:disabled,
+.x-1337x-auto-links-magnet:not([href]),
 .x-1337x-auto-links-torrent:disabled {
   opacity: 0.88;
   filter: saturate(0.45);

@@ -390,3 +390,57 @@ every shape 1337x serves — other page types, other result sets and a torrent t
 magnet link remain unobserved, and an unobserved shape still surfaces as D-004's visible "not found".
 `docs/status.md` carries the observation; `docs/development.md` already tells a reader how to correct
 the selectors from a fresh capture if one is ever needed.
+
+## D-013: A resolved magnet control is a real magnet link
+
+**Date:** 2026-09-21
+
+**Context:** The controls are `<button>` elements, so right-clicking the magnet control offered only
+the generic page menu — no "Copy link address". On a torrent site the magnet is a genuine
+`<a href="magnet:…">`, and the browser's own menu offers the copy on it. The user asked for that
+parity: right-clicking the extension's control should let them copy the magnet the way a torrent
+site already does.
+
+**Decision:**
+
+- **The magnet control is an anchor, not a button.** Once a row resolves with a magnet, the control
+  carries an `href` set to the magnet URI **exactly as the detail page wrote it** — never re-encoded,
+  never URL-resolved, the rule `extractDetailLinks` already follows; the reader's own trim of
+  surrounding whitespace at read time (D-004) is the only transformation anywhere in the pipeline.
+  Chrome and Brave then treat it as a real link: the browser's own **Copy link address**, the URI in
+  the status bar on hover, and drag-to-client. The browser provides all of that for any link, so **no
+  permission is added**.
+- **While there is nothing to copy the control is not a link.** Injected, unresolved, magnet-less or
+  failed, it carries no `href` attribute at all and is marked `aria-disabled="true"`; its glyph,
+  accessible name and tooltip are exactly today's. `href` is set and cleared in the one function
+  that renders a control's state, so the control is a link precisely when it has a magnet to carry.
+  The stylesheet keys the disabled look off the absence of `href`, so the visual states do not
+  change.
+- **The click path is untouched** (D-004): handled in the page context, default prevented, the
+  handoff made through a temporary anchor with user activation — the behaviour verified end to end
+  on `v0.1.0`. The `href` exists for the browser's link affordances; without the `preventDefault` it
+  would double as a second handoff and fire twice.
+- **The `.torrent` control is untouched.** The request was the magnet control, and the file control
+  keeps `chrome.downloads` and its visible `saved`/`failed` state.
+
+**Rejected:**
+
+- **`chrome.contextMenus` with our own "Copy magnet link" item** — a permission addition is a
+  decision by the manifest's own rule (`docs/architecture.md`), and the browser's built-in entry
+  already does this; the custom one would buy a clearer label and drag in clipboard handling out of
+  the service worker behind it.
+- **Making the row's title link or the row itself carry the magnet** — the site's markup is not ours
+  to change (D-003).
+- **Copying silently on the `contextmenu` event, with no menu** — not what "Copy link address"
+  means, and a surprise where the user's reflex is a menu.
+
+**Consequences:** the control is semantically a link now, which is the point of the change rather
+than a side effect. D-004's note that browser behaviours cannot be fixture-proven extends to the
+menu: a DOM assertion pins the precondition it rests on — an anchor carrying the magnet URI verbatim
+— and the menu itself joins the acceptance test the owner runs. The stylesheet's `:disabled`
+selectors move to the anchor's own markers with no intended visual change; D-007/D-009's "disabled
+is never invisible" stands. One clause is enforced by reading rather than by a test, and is recorded
+as such: the URI is written with `setAttribute`, because in a real browser a property assignment
+(`href = …`) would re-serialise it — and the DOM shim the suite runs on cannot tell the two paths
+apart, its `href` setter delegating straight to `setAttribute`. What the suite does pin is the write
+path itself: no encoding and no trimming (`test/core/controls.test.ts`).

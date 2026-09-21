@@ -86,6 +86,7 @@ and attach the zip. The exact procedure lives in
 | Buttons don't appear on a page | Only pages with result rows get controls; check the page actually has a results table |
 | A control shows the alert glyph | The row could not be resolved — hover the control for the reason. A failed row is never cached, so a later visit retries it |
 | A control shows `missing` (tooltip `no magnet` / `no .torrent`) | The detail page was fetched but that link was not found in it: the D-004 selectors need correcting from a fresh capture of the page |
+| Right-clicking the magnet icon has no **Copy link address** | The control is a link only once the row resolves with a magnet. An unresolved, magnet-less or failed row deliberately carries no `href` — its tooltip names the reason (D-013) |
 | "Service worker registration failed" | The worker bundle must stay a self-contained IIFE; check that a new import didn't turn it into a module |
 | Edits don't show up | Reload the extension card in `chrome://extensions`, then refresh the page |
 

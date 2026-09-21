@@ -20,7 +20,8 @@ Nothing is installed anywhere else, and you can remove it at any time.
 ## Using it
 
 - **Magnet control** hands the row's magnet link to your torrent client, leaving the results page
-  where it is.
+  where it is. Once the row is resolved the control is a real magnet link: right-click it and choose
+  **Copy link address** to copy the magnet, exactly as you would on a torrent site.
 - **`.torrent` control** saves the row's `.torrent` file through your browser's downloads.
 - Links resolve in the background — at most two at a time, spaced out, and cached, so a repeat search
   costs no new requests. Hovering a row moves it to the front of the queue.

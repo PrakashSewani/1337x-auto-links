@@ -4,6 +4,15 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-09-21
+
+### Added
+
+- The magnet control on a resolved row is a real `magnet:` link, so the browser's own right-click
+  **Copy link address** works on it — the same as on a torrent site — and the link can be dragged to a
+  torrent client. A row with nothing to carry (unresolved, magnet-less or failed) is deliberately not
+  a link, and the change adds no permission (`docs/decisions.md`, D-013).
+
 ## [0.1.0] - 2026-09-20
 
 ### Added

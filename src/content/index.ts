@@ -43,7 +43,12 @@ export async function runContentScript(root: ParentNode, pageUrl: string): Promi
   }));
 
   for (const state of states) {
-    state.controls.magnet.addEventListener('click', () => handOffMagnet(state));
+    // The magnet control is a real link once its row resolves (D-013), so its own href default has
+    // to be prevented or the browser would fire a second handoff on top of this one.
+    state.controls.magnet.addEventListener('click', (event) => {
+      event.preventDefault();
+      handOffMagnet(state);
+    });
     state.controls.torrent.addEventListener('click', () => {
       void saveTorrent(state);
     });

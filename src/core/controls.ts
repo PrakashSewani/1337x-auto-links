@@ -4,14 +4,16 @@ import type { IconName } from './icons';
 import type { ResultRow } from './types';
 
 /**
- * The live controls for one result row (D-003): the container's two icon buttons plus the setters
- * that render the row's state. `setLinks` is the resolved state; `setSaving` / `setSaved` /
- * `setFailed` are the `.torrent` save lifecycle; `setUnresolved` is a row whose detail page could
- * not be read at all, so neither link is known.
+ * The live controls for one result row (D-003): the container's two controls — the magnet link and
+ * the `.torrent` button — plus the setters that render the row's state. `setLinks` is the resolved
+ * state; `setSaving` / `setSaved` / `setFailed` are the `.torrent` save lifecycle; `setUnresolved`
+ * is a row whose detail page could not be read at all, so neither link is known. The magnet is an
+ * anchor so a resolved row is a real link the browser's own right-click copy and drag can act on
+ * (D-013).
  */
 export interface RowControls {
   row: ResultRow;
-  magnet: HTMLButtonElement;
+  magnet: HTMLAnchorElement;
   torrent: HTMLButtonElement;
   setLinks(links: DetailLinks): void;
   setSaving(): void;
@@ -30,7 +32,7 @@ const TORRENT_CLASS = 'x-1337x-auto-links-torrent';
 /** The `data-state` marker the stylesheet keys the non-default button looks off. */
 const DATA_STATE = 'data-state';
 
-/** The buttons' accessible names: what each control does, since an icon alone does not say it. */
+/** The controls' accessible names: what each control does, since an icon alone does not say it. */
 const MAGNET_LABEL = 'Magnet';
 const TORRENT_LABEL = 'Save .torrent file';
 const MISSING_MAGNET_TITLE = 'no magnet';
@@ -51,8 +53,8 @@ const SAVING_STATE = 'saving';
 const SAVED_STATE = 'saved';
 const FAILED_STATE = 'failed';
 
-/** Everything one button renders: its glyph, accessible name, usability and CSS marker. */
-interface ButtonState {
+/** Everything one control renders: its glyph, accessible name, usability and CSS marker. */
+interface ControlState {
   icon: IconName;
   /** The accessible name (`aria-label`) and, unless `title` overrides it, the tooltip. */
   label: string;
@@ -60,18 +62,23 @@ interface ButtonState {
   /** The `data-state` marker, or `null` to clear it. */
   state: string | null;
   title?: string;
+  /**
+   * The magnet URI to carry, verbatim (D-013). Set on the anchor, ignored by the button; `null` or
+   * absent clears any previous `href`.
+   */
+  href?: string | null;
 }
 
 interface InjectedButtons {
-  magnet: HTMLButtonElement;
+  magnet: HTMLAnchorElement;
   torrent: HTMLButtonElement;
 }
 
 /**
  * Injects the per-row controls (D-003) and returns handles to them. The container goes inside the
  * row's name cell, directly after the title link; a row with no name cell is skipped rather than
- * guessed at. Idempotent — a row that already carries the container reuses it. Both buttons start
- * disabled, showing their glyphs.
+ * guessed at. Idempotent — a row that already carries the container reuses it. Both controls start
+ * disabled, showing their glyphs; the magnet starts with no `href`.
  */
 export function injectControls(rows: ResultRow[]): RowControls[] {
   const controls: RowControls[] = [];
@@ -129,7 +136,7 @@ function makeControls(row: ResultRow, buttons: InjectedButtons): RowControls {
     },
     setFailed(message) {
       const reason = reasonOr(message, FAILED_FALLBACK);
-      // Only the `.torrent` save failed; the magnet button is left exactly as it was — usable.
+      // Only the `.torrent` save failed; the magnet control is left exactly as it was — usable.
       render(buttons.torrent, {
         icon: 'alert',
         label: reason,
@@ -140,8 +147,8 @@ function makeControls(row: ResultRow, buttons: InjectedButtons): RowControls {
     },
     setUnresolved(message) {
       const reason = reasonOr(message, UNRESOLVED_FALLBACK);
-      // Neither link is known, so both buttons say so: leaving the magnet button as `Magnet` would
-      // read as "still loading" forever.
+      // Neither link is known, so both controls say so: leaving the magnet as `Magnet` would
+      // read as "still loading" forever, and it must drop any href it was carrying (D-013).
       render(buttons.magnet, {
         icon: 'alert',
         label: reason,
@@ -161,12 +168,13 @@ function makeControls(row: ResultRow, buttons: InjectedButtons): RowControls {
 }
 
 /**
- * Enables a button iff its link resolved. A missing link keeps the same pictogram, swapped for its
+ * Enables a control iff its link resolved. A missing link keeps the same pictogram, swapped for its
  * own greyed, slashed variant and naming the reason, so `missing` is never mistaken for the default
- * or the failed state (D-007).
+ * or the failed state (D-007). On the magnet anchor the resolved `href` is carried verbatim, and
+ * cleared in every other state, through this one path (D-013).
  */
 function renderLink(
-  button: HTMLButtonElement,
+  element: HTMLAnchorElement | HTMLButtonElement,
   href: string | null,
   icon: IconName,
   missingIcon: IconName,
@@ -174,7 +182,7 @@ function renderLink(
   missingTitle: string,
 ): void {
   if (href === null) {
-    render(button, {
+    render(element, {
       icon: missingIcon,
       label,
       enabled: false,
@@ -184,7 +192,7 @@ function renderLink(
     return;
   }
 
-  render(button, { icon, label, enabled: true, state: null });
+  render(element, { icon, label, enabled: true, state: null, href });
 }
 
 /** A reason the control can actually render: an empty or whitespace-only message is absent. */
@@ -193,26 +201,42 @@ function reasonOr(message: string, fallback: string): string {
 }
 
 /**
- * Renders one button: swaps in its glyph, sets the accessible name, drives `disabled`, stamps the
- * `data-state` marker, and sets or clears the tooltip so a stale one never lingers.
+ * Renders one control: swaps in its glyph, sets the accessible name, drives `disabled` on the
+ * button, stamps the `data-state` marker, and sets or clears the tooltip so a stale one never
+ * lingers. The magnet anchor's `href` and `aria-disabled` are written here too, from the single
+ * path every state goes through, so `href` is present exactly when there is a magnet to carry and no
+ * state can leave one behind (D-013).
  */
-function render(button: HTMLButtonElement, state: ButtonState): void {
-  button.replaceChildren(createIcon(button.ownerDocument, state.icon));
-  button.setAttribute('aria-label', state.label);
-  button.disabled = !state.enabled;
+function render(element: HTMLAnchorElement | HTMLButtonElement, state: ControlState): void {
+  element.replaceChildren(createIcon(element.ownerDocument, state.icon));
+  element.setAttribute('aria-label', state.label);
 
-  if (state.state === null) button.removeAttribute(DATA_STATE);
-  else button.setAttribute(DATA_STATE, state.state);
+  if (element instanceof HTMLAnchorElement) {
+    // `setAttribute` keeps the URI exactly as the detail page wrote it: a property assignment could
+    // normalise it. With no magnet there is no link at all, so the anchor reads as disabled.
+    if (state.href == null) {
+      element.removeAttribute('href');
+      element.setAttribute('aria-disabled', 'true');
+    } else {
+      element.setAttribute('href', state.href);
+      element.removeAttribute('aria-disabled');
+    }
+  } else {
+    element.disabled = !state.enabled;
+  }
 
-  if (state.title === undefined) button.removeAttribute('title');
-  else button.title = state.title;
+  if (state.state === null) element.removeAttribute(DATA_STATE);
+  else element.setAttribute(DATA_STATE, state.state);
+
+  if (state.title === undefined) element.removeAttribute('title');
+  else element.title = state.title;
 }
 
 function findInjected(nameCell: HTMLTableCellElement): InjectedButtons | null {
   const container = nameCell.querySelector<HTMLElement>(`.${CONTROLS_CLASS}`);
   if (container === null) return null;
 
-  const magnet = container.querySelector<HTMLButtonElement>(`.${MAGNET_CLASS}`);
+  const magnet = container.querySelector<HTMLAnchorElement>(`.${MAGNET_CLASS}`);
   const torrent = container.querySelector<HTMLButtonElement>(`.${TORRENT_CLASS}`);
   if (magnet === null || torrent === null) return null;
 
@@ -225,7 +249,7 @@ function insertControls(row: ResultRow, nameCell: HTMLTableCellElement): Injecte
   const container = doc.createElement('span');
   container.className = CONTROLS_CLASS;
 
-  const magnet = createButton(doc, 'magnet', MAGNET_LABEL, MAGNET_CLASS);
+  const magnet = createAnchor(doc, 'magnet', MAGNET_LABEL, MAGNET_CLASS);
   const torrent = createButton(doc, 'file', TORRENT_LABEL, TORRENT_CLASS);
   container.append(magnet, torrent);
 
@@ -233,6 +257,20 @@ function insertControls(row: ResultRow, nameCell: HTMLTableCellElement): Injecte
   nameCell.insertBefore(container, row.link.nextSibling);
 
   return { magnet, torrent };
+}
+
+/** The magnet is an anchor (D-013) so a resolved row is a real link; it carries no `type`. */
+function createAnchor(
+  doc: Document,
+  icon: IconName,
+  label: string,
+  className: string,
+): HTMLAnchorElement {
+  const anchor = doc.createElement('a');
+  anchor.className = className;
+  render(anchor, { icon, label, enabled: false, state: null });
+
+  return anchor;
 }
 
 function createButton(
