@@ -13,14 +13,14 @@ rule 4. Keep exactly one phase `in progress` — and once every phase is complet
 | 3 | Polish: README, icons, error messages, docs — the parts users judge first | **complete** — the product name, the pictogram controls, hover priority, the icon set, the D-010 loading-path hardening and the D-011 release packaging all landed |
 | 4 | Release: tag `v0.1.0`, artifacts published, install path verified from a clean machine | **complete** — `v0.1.0` is tagged and published with the zip attached, and that zip was installed unpacked in Brave (card reading `0.1.0`) with the workflow then confirmed end to end on a real page, 2026-09-20 — on the owner's own machine, which carries this checkout, not on a bare one |
 | 5 | Right-click copy: the resolved magnet control becomes a real `magnet:` link (D-013) | **complete** — implemented, independently verified 2026-09-21 with mutants; the native menu was confirmed by the owner in Brave (acceptance step 6) |
-| 6 | Release `v0.2.0`: the right-click copy ships | **in progress** |
+| 6 | Release `v0.2.0`: the right-click copy ships | **complete** — `v0.2.0` is tagged and published with the zip attached; the Release workflow ran green in 30 s and the published asset was downloaded back and inspected (manifest stamped `0.2.0`, bundles, icons, README.md and LICENSE at its root) |
 
 ## Current handoff
 
-**Phase:** 6 — the `v0.2.0` release is in progress in this pass: the owner confirmed the right-click
-copy works (acceptance step 6, 2026-09-21), and the bump, artifact, tag and CI run follow. Phase 5
-(D-013) closed on 2026-09-21; phase 4 closed on 2026-09-20 with the `v0.1.0` zip installed unpacked in
-Brave and the acceptance test run against a live page.
+**Phase:** none — phase 6 closed on 2026-09-21 with `v0.2.0` published, so the tracker's "exactly
+one phase `in progress`" rule has nothing to point at again. The owner confirmed the right-click copy
+in Brave (acceptance step 6) before the release; phase 5 closed the same day and phase 4 on
+2026-09-20.
 
 **Landed on the way to `v0.1.0` (D-005 through D-011):**
 
@@ -98,7 +98,13 @@ Brave and the acceptance test run against a live page.
   the bundles and icons, and `README.md` with `LICENSE` beside them. That run exercised the
   tag/version guard for the first time.
   [Release page](https://github.com/PrakashSewani/1337x-auto-links/releases/tag/v0.1.0)
-- **CI is green on every push**, `9ec44c1` (D-010) and `986bf08` (this release) included.
+- **`v0.2.0` is released** — the tag points at `33b4ef9`, the Release workflow ran green in 30 s (the
+  tag/version guard passed again), and the published asset was downloaded back and inspected: the
+  same 11 entries as the local zip, `manifest.json` at the root stamped `0.2.0`, and the install
+  `README.md` carrying the right-click copy text.
+  [Release page](https://github.com/PrakashSewani/1337x-auto-links/releases/tag/v0.2.0)
+- **CI is green on every push**, `9ec44c1` (D-010), `986bf08` (`v0.1.0`) and `33b4ef9` (`v0.2.0`)
+  included.
 - The build's failure mode was probed rather than assumed: with `packaging/README.md`, and separately
   `LICENSE`, renamed away, `npm run zip` exits 1 with an `ENOENT` and writes no zip. The one gap, now
   recorded in D-011's consequences: a failed run does not delete a zip an earlier successful run left
@@ -151,11 +157,11 @@ choice behind the magnet URI, which the DOM shim cannot tell apart because its `
 straight to `setAttribute`; the native **Copy link address** menu it serves was confirmed by the owner
 in Brave (step 6, above).
 
-**Next action:** the `v0.2.0` release is being made in this pass (phase 6): bump, artifact, tag, CI.
-The owner's acceptance check for it is already done (step 6, 2026-09-21). What remains afterwards is
-the **Also open** list below: the D-010 batching follow-up, `registerMessageHandler`'s
-rejection → `sendResponse(undefined)` mapping still being untested, and the `test/icons.test.ts`
-environment note. Any future release re-runs the acceptance test below against the new zip first.
+**Next action:** no release is pending — every phase is complete and `v0.2.0` is the shipped
+artifact. What is left is the **Also open** list below: the D-010 batching follow-up,
+`registerMessageHandler`'s rejection → `sendResponse(undefined)` mapping still being untested, and the
+`test/icons.test.ts` environment note. Any future release re-runs the acceptance test below against
+the new zip first.
 
 ### Acceptance test
 
@@ -163,9 +169,10 @@ Run in full — steps 1–5 on 2026-09-20 by the owner in Brave from the `v0.1.0
 unpacked, step 6 on 2026-09-21 from the local build. It is the re-test checklist for any future
 release: these are the behaviours no fixture can cover.
 
-1. Download `1337x-auto-links-0.1.0.zip` from the release page, unzip it, and load the unzipped folder
-   unpacked in `chrome://extensions`; confirm the card's version reads **0.1.0**. For a local build
-   instead: `npm run build`, reload the card, refresh the 1337x page.
+1. Download the current release's zip (`1337x-auto-links-<version>.zip`) from the release page, unzip
+   it, and load the unzipped folder unpacked in `chrome://extensions`; confirm the card's version
+   matches the tag. For a local build instead: `npm run build`, reload the card, refresh the 1337x
+   page.
 2. Each row should show two small icons right after the title. Hover a row deep in the list — its
    icons should enable before the rows above it.
 3. Filter the page console by `1337x-auto-links`: rows found, cache hits/misses, each fetch and its
